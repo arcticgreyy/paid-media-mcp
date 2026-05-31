@@ -6,10 +6,28 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server templat
 
 ---
 
+## The paid media agent suite
+
+This MCP is one part of a three-piece toolkit for a Claude-powered paid media workflow:
+
+| Component | What it does |
+|---|---|
+| **[paid-media-mcp](https://github.com/arcticgreyy/paid-media-mcp)** ← you are here | MCP server — connects Claude to your campaign data, team structure, performance history, and institutional knowledge |
+| **[paid-media-mcp-setup skills](https://github.com/arcticgreyy/skills/tree/main/paid-media-mcp-setup)** | Setup wizard and data import skills — populate your data files from BigQuery, spreadsheets, or platform exports, and keep them current |
+| **[paid-media skills](https://github.com/arcticgreyy/skills/tree/main/paid-media)** | Campaign strategy and execution skills — DV360, DCO, PPC, CM360 click trackers, and more. Work best when this MCP is connected. |
+
+**How they fit together:**
+1. Clone this repo and run the `/paid-media/setup` skill to populate your data files
+2. Use `/paid-media/import-data` on a regular cadence to keep campaign and performance data current
+3. Use `/paid-media/*` skills for day-to-day campaign work — they use your MCP data automatically when it's connected
+
+---
+
 ## Table of Contents
 
-1. [What this does](#what-this-does)
-2. [Quick start](#quick-start)
+1. [The paid media agent suite](#the-paid-media-agent-suite)
+2. [What this does](#what-this-does)
+3. [Quick start](#quick-start)
 3. [Filling in your data](#filling-in-your-data)
    - [metadata.json](#metadatajson)
    - [accounts.json](#accountsjson)
@@ -91,8 +109,8 @@ These answers are only possible when campaign data, institutional knowledge, and
 ### Step 1 — Clone and install
 
 ```bash
-git clone https://github.com/arcticgreyy/paidmedia-mcp.git
-cd paidmedia-mcp
+git clone https://github.com/arcticgreyy/paid-media-mcp.git
+cd paid-media-mcp
 npm install
 ```
 
@@ -1435,7 +1453,7 @@ Rate metrics (CTR, CPC, ROAS) are re-computed from raw totals during aggregation
 ## Project structure
 
 ```
-paidmedia-mcp/
+paid-media-mcp/
 ├── src/
 │   ├── index.ts                  # MCP server entry point
 │   ├── types.ts                  # TypeScript interfaces for all data models
