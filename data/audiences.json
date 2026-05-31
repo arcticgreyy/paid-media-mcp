@@ -1,0 +1,281 @@
+{
+  "audience_library": {
+    "business_unit": "Acme Corp — All Business Units",
+    "first_party_audiences": [
+      {
+        "id": "aud_purchasers_180d",
+        "name": "Past Purchasers — 180 Days",
+        "type": "pixel_based",
+        "description": "All website visitors who completed a purchase event in the last 180 days. Segment synced via Meta Pixel and Google Ads tag.",
+        "size_estimate": 45000,
+        "platforms_available": ["meta", "google_ads", "tiktok"],
+        "refresh_cadence": "daily",
+        "source": "Website pixel (purchase event)",
+        "tags": ["purchasers", "retention", "lookalike-seed"],
+        "notes": "Primary seed audience for lookalike expansion. Also used as suppression for new customer campaigns."
+      },
+      {
+        "id": "aud_cart_abandon_14d",
+        "name": "Cart Abandoners — 14 Days",
+        "type": "pixel_based",
+        "description": "Users who added to cart but did not purchase within the last 14 days. High-intent retargeting segment.",
+        "size_estimate": 12000,
+        "platforms_available": ["meta", "google_ads"],
+        "refresh_cadence": "daily",
+        "source": "Website pixel (add_to_cart event, no purchase)",
+        "tags": ["retargeting", "cart-abandonment", "high-intent"],
+        "notes": "Highest ROAS retargeting segment. Suppress users who purchased after cart abandonment."
+      },
+      {
+        "id": "aud_site_visitors_30d",
+        "name": "Site Visitors — 30 Days",
+        "type": "pixel_based",
+        "description": "All website visitors (any page) in the last 30 days. Broad retargeting pool.",
+        "size_estimate": 180000,
+        "platforms_available": ["meta", "google_ads", "dv360", "linkedin"],
+        "refresh_cadence": "daily",
+        "source": "Website pixel (page_view event)"
+      },
+      {
+        "id": "aud_crm_all_customers",
+        "name": "CRM — All Customers",
+        "type": "crm_list",
+        "description": "Full customer email list from Salesforce. Used for suppression and customer match targeting.",
+        "size_estimate": 320000,
+        "platforms_available": ["meta", "google_ads", "linkedin"],
+        "refresh_cadence": "monthly",
+        "source": "Salesforce CRM export",
+        "onboarding_platform_id": "ob_liveramp",
+        "tags": ["crm", "suppression", "customer-match"],
+        "notes": "Exported monthly by data team. Requires hashing before upload (email, phone). LiveRamp handles identity resolution for DV360."
+      },
+      {
+        "id": "aud_crm_vip",
+        "name": "CRM — VIP Customers (LTV Top 20%)",
+        "type": "crm_list",
+        "description": "Customers in the top 20% by lifetime value. Used as high-quality lookalike seed and for exclusivity offers.",
+        "size_estimate": 64000,
+        "platforms_available": ["meta", "google_ads"],
+        "refresh_cadence": "quarterly",
+        "source": "Salesforce CRM — LTV segment",
+        "tags": ["crm", "high-value", "lookalike-seed"]
+      },
+      {
+        "id": "aud_b2b_leads",
+        "name": "B2B Leads — HubSpot",
+        "type": "crm_list",
+        "description": "All B2B leads captured via LinkedIn Lead Gen Forms and website forms, synced to HubSpot.",
+        "business_unit": "B2B",
+        "size_estimate": 8500,
+        "platforms_available": ["linkedin", "meta"],
+        "refresh_cadence": "weekly",
+        "source": "HubSpot CRM",
+        "tags": ["b2b", "leads", "linkedin"],
+        "notes": "Used for nurture campaigns on LinkedIn and Meta. Segment by lead status: MQL vs SQL."
+      },
+      {
+        "id": "aud_suppression_recent_purchasers",
+        "name": "Suppression — Recent Purchasers (30 Days)",
+        "type": "suppression",
+        "description": "Purchasers in the last 30 days. Applied as exclusion to all prospecting campaigns to avoid wasting spend on recent buyers.",
+        "size_estimate": 8500,
+        "platforms_available": ["meta", "google_ads", "tiktok", "linkedin"],
+        "refresh_cadence": "daily",
+        "source": "Website pixel (purchase event)",
+        "tags": ["suppression", "exclusion"],
+        "notes": "Must be applied to all prospecting and awareness campaigns. Exception: re-purchase campaigns or cross-sell campaigns."
+      },
+      {
+        "id": "aud_app_users",
+        "name": "Mobile App Users",
+        "type": "app_users",
+        "description": "Users who have installed and opened the Acme mobile app. Synced via Meta SDK and Google Firebase.",
+        "size_estimate": 55000,
+        "platforms_available": ["meta", "google_ads", "tiktok"],
+        "refresh_cadence": "daily",
+        "source": "Firebase + Meta SDK app events",
+        "tags": ["app", "mobile", "retention"]
+      }
+    ],
+    "data_providers": [
+      {
+        "id": "dp_oracle",
+        "name": "Oracle Data Cloud (Moat / Grapeshot)",
+        "contract_status": "active",
+        "segments_available": [
+          "In-Market: Home & Garden",
+          "In-Market: Consumer Electronics",
+          "Demographic: Homeowners 25-54",
+          "Behavioral: Online Shoppers (Heavy)",
+          "Lifestyle: Home Improvement Enthusiasts"
+        ],
+        "platforms_available": ["dv360", "google_ads"],
+        "contact": "oracle-rep@oracle.com",
+        "contract_end_date": "2026-12-31",
+        "annual_cost": 45000,
+        "notes": "Primary third-party data provider for DV360 programmatic. Oracle audiences applied as targeting overlays on brand campaigns. Audience usage triggers incremental CPM."
+      },
+      {
+        "id": "dp_experian",
+        "name": "Experian Marketing Data",
+        "contract_status": "active",
+        "segments_available": [
+          "HH Income $75k-$150k",
+          "HH Income $150k+",
+          "Homeowner",
+          "New Mover (12 months)",
+          "Life Event: New Parent"
+        ],
+        "platforms_available": ["meta", "dv360"],
+        "contact": "acme.account@experian.com",
+        "contract_end_date": "2026-09-30",
+        "annual_cost": 28000,
+        "notes": "Demographic and life-event segments. Used on Meta for income and homeowner targeting overlays. Upcoming contract renewal — evaluate against LiveRamp Marketplace alternatives."
+      },
+      {
+        "id": "dp_bombora",
+        "name": "Bombora B2B Intent Data",
+        "contract_status": "active",
+        "segments_available": [
+          "B2B Intent: Marketing Technology",
+          "B2B Intent: CRM Software",
+          "B2B Intent: Digital Advertising",
+          "Company Surge: Marketing Budget"
+        ],
+        "platforms_available": ["linkedin"],
+        "contact": "bombora-rep@bombora.com",
+        "contract_end_date": "2026-06-30",
+        "annual_cost": 18000,
+        "notes": "B2B intent signals for LinkedIn campaigns. Applied to LinkedIn B2B lead gen campaign. Renewal decision needed by May 2026."
+      }
+    ],
+    "onboarding_platforms": [
+      {
+        "id": "ob_liveramp",
+        "name": "LiveRamp Data Collaboration",
+        "type": "data_onboarding",
+        "platforms_connected": ["meta", "google_ads", "dv360", "linkedin", "tiktok"],
+        "use_cases": [
+          "CRM list onboarding for customer match targeting",
+          "Identity resolution across platforms",
+          "Offline conversion data upload",
+          "Data partner segment activation"
+        ],
+        "contact": "liveramp-support@liveramp.com",
+        "notes": "Primary data onboarding vendor. All CRM uploads go through LiveRamp for PII hashing and identity matching before platform upload. TAT: 48-72 hours for new audience activation."
+      },
+      {
+        "id": "ob_habu",
+        "name": "Habu Clean Room",
+        "type": "clean_room",
+        "platforms_connected": ["meta", "google_ads"],
+        "use_cases": [
+          "Meta Advanced Analytics (overlapping reach/frequency analysis)",
+          "Google Ads Data Hub queries",
+          "Cross-platform audience overlap analysis",
+          "Attribution analysis with publisher data"
+        ],
+        "contact": "habu-rep@habu.com",
+        "notes": "Used for privacy-safe analysis that requires joining first-party data with platform data. Not used for real-time activation. Analysis requests take 3-5 business days."
+      }
+    ],
+    "lookalike_strategy": {
+      "default_expansion_pct": 1,
+      "notes": "Default expansion is 1% for efficiency-focused campaigns. Scale to 5% when volume is constrained. Always suppress seed audience from lookalike targeting. Test new seed audiences before scaling spend against them.",
+      "entries": [
+        {
+          "seed_audience_id": "aud_purchasers_180d",
+          "seed_audience_name": "Past Purchasers — 180 Days",
+          "platform": "meta",
+          "expansion_percentages": [1, 2, 5],
+          "best_performing_expansion": 1,
+          "notes": "1% delivers lowest CPA. 5% used when scaling spend above $3k/day and 1% audience saturates (frequency >3)."
+        },
+        {
+          "seed_audience_id": "aud_crm_vip",
+          "seed_audience_name": "CRM — VIP Customers (LTV Top 20%)",
+          "platform": "meta",
+          "expansion_percentages": [1, 3],
+          "best_performing_expansion": 1,
+          "notes": "Higher quality seed. Used for premium product line campaigns."
+        },
+        {
+          "seed_audience_id": "aud_purchasers_180d",
+          "seed_audience_name": "Past Purchasers — 180 Days",
+          "platform": "google_ads",
+          "expansion_percentages": [5, 10],
+          "best_performing_expansion": 5,
+          "notes": "Google's 'similar segments' equivalent. Less precise than Meta LAL — use as secondary signal alongside keyword targeting."
+        }
+      ]
+    },
+    "third_party_layers": [
+      {
+        "id": "3p_in_market_home_goods",
+        "name": "In-Market: Home & Garden",
+        "provider": "Google (native)",
+        "category": "in-market",
+        "platforms_available": ["google_ads", "dv360"],
+        "is_default": true,
+        "is_best_performer": true,
+        "cpm_premium_estimate": 0.50,
+        "performance_notes": "Applied by default to all brand DV360 campaigns. Reduces wasted impressions by ~30% vs run-of-network. Best-performing audience overlay for our category."
+      },
+      {
+        "id": "3p_homeowners",
+        "name": "Homeowner (Experian)",
+        "provider": "Experian",
+        "category": "demographic",
+        "platforms_available": ["meta", "dv360"],
+        "is_default": false,
+        "is_best_performer": true,
+        "cpm_premium_estimate": 1.20,
+        "performance_notes": "Strong performer for home goods campaigns. Adds $1.20 CPM but typically improves CPA by 15-20% by eliminating renters who are outside our ICP."
+      },
+      {
+        "id": "3p_income_75k_plus",
+        "name": "HH Income $75k+ (Experian)",
+        "provider": "Experian",
+        "category": "demographic",
+        "platforms_available": ["meta", "dv360"],
+        "is_default": false,
+        "is_best_performer": false,
+        "cpm_premium_estimate": 0.90,
+        "performance_notes": "Mixed results. Stronger for premium product line (AOV >$200), minimal impact for core product range. Test before scaling."
+      },
+      {
+        "id": "3p_online_shoppers_heavy",
+        "name": "Online Shoppers — Heavy (Oracle)",
+        "provider": "Oracle Data Cloud",
+        "category": "behavioral",
+        "platforms_available": ["dv360"],
+        "is_default": true,
+        "is_best_performer": true,
+        "cpm_premium_estimate": 0.80,
+        "performance_notes": "Default overlay on all DV360 prospecting campaigns. Consistently improves CTR vs untargeted inventory."
+      },
+      {
+        "id": "3p_b2b_intent_martech",
+        "name": "B2B Intent: Marketing Technology (Bombora)",
+        "provider": "Bombora",
+        "category": "intent",
+        "platforms_available": ["linkedin"],
+        "is_default": true,
+        "is_best_performer": true,
+        "cpm_premium_estimate": 3.50,
+        "performance_notes": "Default for LinkedIn B2B campaigns. High CPM premium but significantly reduces cost-per-MQL by pre-qualifying intent. Best paired with job title targeting."
+      },
+      {
+        "id": "3p_new_mover",
+        "name": "New Mover — 12 Months (Experian)",
+        "provider": "Experian",
+        "category": "life_event",
+        "platforms_available": ["meta"],
+        "is_default": false,
+        "is_best_performer": false,
+        "cpm_premium_estimate": 1.50,
+        "performance_notes": "Seasonal performance — strong Q1 and Q4 (moving season). Tested Q2 2025 with inconclusive results. Re-test Q4 2026."
+      }
+    ]
+  }
+}

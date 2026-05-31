@@ -1,0 +1,108 @@
+{
+  "attribution_configurations": [
+    {
+      "id": "attr_last_click_30d",
+      "name": "Last Click — 30-Day Click",
+      "model": "last_click",
+      "window": {
+        "click": 30,
+        "view": 0,
+        "unit": "days"
+      },
+      "platforms_applied": ["google_ads", "meta"],
+      "conversion_events": ["purchase", "add_to_cart", "lead_form_submit"],
+      "cross_device": false,
+      "view_through_enabled": false,
+      "description": "100% of conversion credit goes to the last clicked ad. 30-day click window. No view-through attribution.",
+      "use_cases": [
+        "Bottom-funnel campaign optimization (search, retargeting)",
+        "Simple baseline comparison across channels",
+        "When brand/awareness spend is minimal"
+      ],
+      "notes": "Default model used by Google Ads and Meta natively. Over-credits lower-funnel touchpoints and search branded. Undervalues prospecting."
+    },
+    {
+      "id": "attr_data_driven_7d",
+      "name": "Data-Driven — 7-Day Click / 1-Day View",
+      "model": "data_driven",
+      "window": {
+        "click": 7,
+        "view": 1,
+        "unit": "days"
+      },
+      "platforms_applied": ["google_ads"],
+      "conversion_events": ["purchase", "add_to_cart"],
+      "cross_device": true,
+      "view_through_enabled": true,
+      "description": "Machine learning distributes credit across all touchpoints based on incremental contribution. Requires minimum conversion volume (300+/month). 7-day click, 1-day view window.",
+      "use_cases": [
+        "Primary optimization model for Performance team Google Ads campaigns",
+        "Smart Bidding (tROAS, tCPA) optimization signal",
+        "Full-funnel analysis when sufficient data volume exists"
+      ],
+      "notes": "Preferred model for Google Ads when volume qualifies. Re-evaluate quarterly — model recalibrates as conversion patterns shift."
+    },
+    {
+      "id": "attr_linear_30d",
+      "name": "Linear — 30-Day Click / 7-Day View",
+      "model": "linear",
+      "window": {
+        "click": 30,
+        "view": 7,
+        "unit": "days"
+      },
+      "platforms_applied": ["google_ads", "meta", "dv360", "linkedin"],
+      "conversion_events": ["purchase", "lead_form_submit"],
+      "cross_device": true,
+      "view_through_enabled": true,
+      "description": "Equal credit to all touchpoints in the conversion path. Cross-device and view-through enabled. Used for cross-channel path analysis.",
+      "use_cases": [
+        "Cross-channel mix analysis and budget allocation decisions",
+        "Understanding upper-funnel contribution to conversions",
+        "Executive reporting when board wants full-path visibility"
+      ],
+      "notes": "Not used for bid optimization — informational only. Compare vs. last-click to quantify how much value upper-funnel is contributing."
+    },
+    {
+      "id": "attr_position_based_30d",
+      "name": "Position-Based (U-Shape) — 30-Day Click",
+      "model": "position_based",
+      "window": {
+        "click": 30,
+        "view": 0,
+        "unit": "days"
+      },
+      "platforms_applied": ["google_ads"],
+      "conversion_events": ["purchase"],
+      "cross_device": false,
+      "view_through_enabled": false,
+      "description": "40% credit to first and last touchpoints, 20% distributed equally across middle touchpoints. Emphasizes acquisition and closing touches.",
+      "use_cases": [
+        "Prospecting + retargeting combined analysis",
+        "Validating that both brand discovery and closing campaigns are contributing",
+        "When journey typically has 3-5 touchpoints"
+      ]
+    },
+    {
+      "id": "attr_meta_7d_click_1d_view",
+      "name": "Meta Standard — 7-Day Click / 1-Day View",
+      "model": "last_click",
+      "window": {
+        "click": 7,
+        "view": 1,
+        "unit": "days"
+      },
+      "platforms_applied": ["meta"],
+      "conversion_events": ["purchase", "add_to_cart", "initiate_checkout", "lead"],
+      "cross_device": true,
+      "view_through_enabled": true,
+      "description": "Meta's default attribution window. Last-click within 7-day click or 1-day view. Used for Meta Ads Manager reporting.",
+      "use_cases": [
+        "Native Meta campaign optimization (Advantage+ campaigns)",
+        "Meta Ads Manager reported metrics",
+        "Comparing Meta self-reported vs. GA4 attribution"
+      ],
+      "notes": "Meta self-reported figures will differ from GA4 due to iOS privacy changes (SKAdNetwork) and view-through counting. Expect 15-30% variance vs. GA4 last-click."
+    }
+  ]
+}

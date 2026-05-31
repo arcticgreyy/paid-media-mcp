@@ -1,0 +1,220 @@
+{
+  "reporting_templates": [
+    {
+      "id": "tmpl_weekly_media_team",
+      "name": "Weekly Performance Report — Media Team",
+      "type": "performance_summary",
+      "audience": "media_team",
+      "cadence": "weekly",
+      "metrics_included": [
+        "impressions", "clicks", "spend", "ctr", "cpc", "cpm",
+        "conversions", "cpa", "roas", "conversion_value",
+        "reach", "frequency", "video_view_rate"
+      ],
+      "dimensions": ["campaign", "platform", "date", "ad_set", "creative"],
+      "visualizations": [
+        "spend_by_campaign_bar",
+        "daily_conversions_line",
+        "roas_by_campaign_bar",
+        "cpa_trend_line"
+      ],
+      "delivery_format": ["google_sheets", "slack"],
+      "sections": [
+        {
+          "title": "Week Summary",
+          "description": "One-paragraph narrative of the week's overall performance vs. prior week and vs. targets.",
+          "metrics": ["spend", "conversions", "roas", "cpa"]
+        },
+        {
+          "title": "Campaign Scorecards",
+          "description": "One row per active campaign: actual vs. target for primary KPIs, pacing status (on/over/under), and a 1-line note.",
+          "metrics": ["spend", "impressions", "clicks", "conversions", "cpa", "roas"]
+        },
+        {
+          "title": "Budget Pacing",
+          "description": "Total spend vs. budget for each campaign. Flag anything >10% over or under expected pacing.",
+          "metrics": ["spend", "budget", "pacing_percentage", "days_remaining"]
+        },
+        {
+          "title": "Top/Bottom Creative",
+          "description": "Top 3 and bottom 3 performing creatives by primary KPI across all campaigns.",
+          "metrics": ["impressions", "ctr", "cpa", "conversions"]
+        },
+        {
+          "title": "Action Items",
+          "description": "Bulleted list of specific actions to take next week: budget shifts, bid changes, creative swaps, pauses.",
+          "metrics": []
+        }
+      ],
+      "notes": "Sent every Monday morning for prior week (Mon-Sun). Owner: each team lead. Distributed to team + manager."
+    },
+    {
+      "id": "tmpl_monthly_executive",
+      "name": "Monthly Executive Report",
+      "type": "executive_summary",
+      "audience": "executive",
+      "cadence": "monthly",
+      "metrics_included": [
+        "total_spend", "total_conversions", "total_revenue", "blended_roas",
+        "blended_cpa", "brand_awareness_reach", "brand_lift_score",
+        "channel_mix_spend_share", "yoy_comparison"
+      ],
+      "dimensions": ["channel", "team", "objective", "month"],
+      "visualizations": [
+        "monthly_spend_by_channel_stacked_bar",
+        "roas_trend_by_channel_line",
+        "spend_vs_revenue_scatter",
+        "channel_mix_pie",
+        "mom_kpi_comparison_table"
+      ],
+      "delivery_format": ["pdf", "email"],
+      "sections": [
+        {
+          "title": "Executive Summary",
+          "description": "3-5 bullet points: total spend, revenue, ROAS, key wins, key challenges. No jargon.",
+          "metrics": ["total_spend", "total_revenue", "blended_roas", "blended_cpa"]
+        },
+        {
+          "title": "Performance vs. Targets",
+          "description": "Table comparing actual vs. target for each team's primary KPIs. RAG status (red/amber/green).",
+          "metrics": ["spend", "conversions", "roas", "cpa", "reach"]
+        },
+        {
+          "title": "Channel Mix & Budget Allocation",
+          "description": "How budget was split across channels and whether it aligns with strategy. Include recommended adjustments.",
+          "metrics": ["spend_by_channel", "roas_by_channel", "cpa_by_channel"]
+        },
+        {
+          "title": "Brand Health Indicators",
+          "description": "Brand team results: reach, frequency, brand lift (if study ran), share of voice estimate.",
+          "metrics": ["reach", "frequency", "brand_lift", "impressions"]
+        },
+        {
+          "title": "Month-over-Month Trends",
+          "description": "Key metric trends vs. prior month and vs. same month last year where available.",
+          "metrics": ["spend", "conversions", "roas", "cpa", "reach"]
+        },
+        {
+          "title": "Next Month Plan",
+          "description": "Planned budget, key campaigns launching, tests running, and major optimizations.",
+          "metrics": []
+        }
+      ],
+      "notes": "Delivered first business day of the following month. Audience: CEO, CMO, VP Marketing, Finance. Keep to 1 page slides + appendix."
+    },
+    {
+      "id": "tmpl_pacing_dashboard",
+      "name": "Daily Pacing Dashboard",
+      "type": "pacing",
+      "audience": "media_team",
+      "cadence": "daily",
+      "metrics_included": [
+        "spend_to_date", "budget_total", "days_elapsed", "days_remaining",
+        "expected_spend", "pacing_variance", "projected_end_spend"
+      ],
+      "dimensions": ["campaign", "team", "platform", "date"],
+      "visualizations": [
+        "spend_vs_budget_gauge_per_campaign",
+        "daily_spend_actual_vs_target_line",
+        "pacing_status_table"
+      ],
+      "delivery_format": ["looker_studio", "slack"],
+      "sections": [
+        {
+          "title": "Pacing Status Overview",
+          "description": "Table of all active campaigns: status (on/over/under), spend to date, expected spend, variance %.",
+          "metrics": ["spend_to_date", "expected_spend", "pacing_variance"]
+        },
+        {
+          "title": "Campaigns Requiring Action",
+          "description": "Campaigns >10% over or under pacing. Recommended actions for each.",
+          "metrics": ["spend_to_date", "pacing_variance", "projected_end_spend"]
+        }
+      ],
+      "notes": "Auto-updated daily via Looker Studio connected to data warehouse. Alert sent via Slack #paid-media-alerts when any campaign is >15% off pace."
+    },
+    {
+      "id": "tmpl_attribution_comparison",
+      "name": "Attribution Model Comparison Report",
+      "type": "attribution_path",
+      "audience": "internal",
+      "cadence": "monthly",
+      "metrics_included": [
+        "conversions_last_click", "conversions_data_driven", "conversions_linear",
+        "spend_credit_by_channel_last_click", "spend_credit_by_channel_linear",
+        "incremental_lift_estimate"
+      ],
+      "dimensions": ["channel", "campaign", "attribution_model"],
+      "visualizations": [
+        "conversion_credit_by_model_grouped_bar",
+        "channel_share_by_model_sankey",
+        "top_conversion_paths_table"
+      ],
+      "delivery_format": ["google_sheets"],
+      "sections": [
+        {
+          "title": "Model Comparison Summary",
+          "description": "Side-by-side conversion counts and channel credit under each attribution model.",
+          "metrics": ["conversions_by_model", "spend_credit_by_model"]
+        },
+        {
+          "title": "Top Conversion Paths",
+          "description": "Most common channel sequences that lead to conversion. Highlights multi-touch journey patterns.",
+          "metrics": ["path_frequency", "conversions_on_path"]
+        },
+        {
+          "title": "Attribution Delta by Channel",
+          "description": "How each channel's credited conversions change between last-click and data-driven/linear. Identifies under/over-credited channels.",
+          "metrics": ["delta_conversions", "delta_spend_credit"]
+        },
+        {
+          "title": "Recommendation",
+          "description": "Based on path data and deltas, recommend which attribution model should drive bid optimization for each campaign type.",
+          "metrics": []
+        }
+      ]
+    },
+    {
+      "id": "tmpl_channel_mix_qbr",
+      "name": "Channel Mix & QBR Report",
+      "type": "channel_mix",
+      "audience": "executive",
+      "cadence": "quarterly",
+      "metrics_included": [
+        "spend_by_channel", "roas_by_channel", "cpa_by_channel",
+        "reach_by_channel", "share_of_voice_estimate",
+        "yoy_spend_shift", "efficiency_index"
+      ],
+      "dimensions": ["channel", "objective", "funnel_stage", "quarter"],
+      "visualizations": [
+        "spend_allocation_sankey",
+        "efficiency_vs_spend_bubble_chart",
+        "quarter_over_quarter_shift_waterfall"
+      ],
+      "delivery_format": ["pdf", "google_sheets"],
+      "sections": [
+        {
+          "title": "Strategic Overview",
+          "description": "How current channel mix aligns with company objectives (brand vs. performance split, funnel coverage).",
+          "metrics": ["spend_by_funnel_stage", "spend_by_objective"]
+        },
+        {
+          "title": "Channel Performance Ranking",
+          "description": "Channels ranked by efficiency (ROAS or CPA), reach, and strategic fit.",
+          "metrics": ["roas_by_channel", "cpa_by_channel", "reach_by_channel"]
+        },
+        {
+          "title": "Quarter-over-Quarter Shifts",
+          "description": "How spend allocation changed vs. prior quarter and the performance impact.",
+          "metrics": ["spend_shift", "performance_impact_estimate"]
+        },
+        {
+          "title": "Next Quarter Allocation Recommendation",
+          "description": "Proposed budget split for next quarter with rationale. Includes test-and-learn budget line.",
+          "metrics": []
+        }
+      ],
+      "notes": "Presented at QBR — prepare 10-minute presentation version. Audience includes CFO. All $ figures rounded to nearest $1k."
+    }
+  ]
+}

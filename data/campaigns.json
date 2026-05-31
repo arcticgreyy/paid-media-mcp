@@ -1,0 +1,216 @@
+{
+  "campaigns": [
+    {
+      "id": "camp_brand_awareness_q2",
+      "name": "Brand Awareness — Q2 2026",
+      "platform": "dv360",
+      "account_id": "acc_brand_dv360",
+      "team_id": "team_brand",
+      "status": "active",
+      "objective": "awareness",
+      "budget": {
+        "type": "monthly",
+        "amount": 60000,
+        "currency": "USD",
+        "pacing": "standard"
+      },
+      "start_date": "2026-04-01",
+      "end_date": "2026-06-30",
+      "targeting": {
+        "geo": ["US"],
+        "age_range": { "min": 25, "max": 54 },
+        "gender": "all",
+        "devices": ["desktop", "mobile", "connected_tv"],
+        "audience_segments": ["in-market_home_goods", "lifestyle_homeowners"]
+      },
+      "creative_themes": ["brand_story", "product_launch_summer"],
+      "funnel_stage": "upper",
+      "tags": ["q2-2026", "brand", "programmatic"],
+      "notes": "Includes CTV component — target 15% of budget to CTV placements"
+    },
+    {
+      "id": "camp_yt_preroll_q2",
+      "name": "YouTube Pre-Roll — Brand Q2 2026",
+      "platform": "youtube",
+      "account_id": "acc_brand_gads",
+      "team_id": "team_brand",
+      "status": "active",
+      "objective": "video_views",
+      "budget": {
+        "type": "monthly",
+        "amount": 20000,
+        "currency": "USD",
+        "pacing": "standard"
+      },
+      "start_date": "2026-04-01",
+      "end_date": "2026-06-30",
+      "targeting": {
+        "geo": ["US", "CA"],
+        "age_range": { "min": 18, "max": 44 },
+        "devices": ["mobile", "desktop", "connected_tv"],
+        "audience_segments": ["custom_intent_competitors", "in-market_consumer_electronics"]
+      },
+      "creative_themes": ["product_demo_30s", "brand_story_15s"],
+      "funnel_stage": "upper",
+      "tags": ["q2-2026", "brand", "youtube", "video"]
+    },
+    {
+      "id": "camp_perf_search_always_on",
+      "name": "Performance Search — Always On",
+      "platform": "google_ads",
+      "account_id": "acc_perf_gads",
+      "team_id": "team_performance",
+      "status": "active",
+      "objective": "conversions",
+      "budget": {
+        "type": "daily",
+        "amount": 2000,
+        "currency": "USD",
+        "pacing": "standard"
+      },
+      "start_date": "2026-01-01",
+      "targeting": {
+        "geo": ["US"],
+        "devices": ["desktop", "mobile"],
+        "keyword_themes": ["branded", "competitor", "category_generic"]
+      },
+      "funnel_stage": "lower",
+      "tags": ["always-on", "search", "performance", "dr"],
+      "notes": "Target ROAS: 5.0x. Smart bidding with tROAS strategy. Branded and non-branded split into separate ad groups."
+    },
+    {
+      "id": "camp_perf_pmax_q2",
+      "name": "Performance Max — Q2 2026",
+      "platform": "google_ads",
+      "account_id": "acc_perf_gads",
+      "team_id": "team_performance",
+      "status": "active",
+      "objective": "conversions",
+      "budget": {
+        "type": "daily",
+        "amount": 1500,
+        "currency": "USD",
+        "pacing": "standard"
+      },
+      "start_date": "2026-04-01",
+      "end_date": "2026-06-30",
+      "targeting": {
+        "geo": ["US"],
+        "audience_segments": ["existing_customers", "similar_audiences"],
+        "custom_audiences": ["crm_suppression_list", "past_purchasers_180d"]
+      },
+      "funnel_stage": "mid",
+      "tags": ["q2-2026", "pmax", "performance"],
+      "notes": "Feed-based with 15+ creative assets. Audience signals: past purchasers + cart abandoners."
+    },
+    {
+      "id": "camp_meta_prosp_q2",
+      "name": "Meta Prospecting — Q2 2026",
+      "platform": "meta",
+      "account_id": "acc_perf_meta",
+      "team_id": "team_performance",
+      "status": "active",
+      "objective": "conversions",
+      "budget": {
+        "type": "daily",
+        "amount": 2500,
+        "currency": "USD",
+        "pacing": "standard"
+      },
+      "start_date": "2026-04-01",
+      "end_date": "2026-06-30",
+      "targeting": {
+        "geo": ["US"],
+        "age_range": { "min": 25, "max": 54 },
+        "gender": "all",
+        "devices": ["mobile", "desktop"],
+        "audience_segments": ["lookalike_1pct_purchasers", "broad_interest_targeting"]
+      },
+      "creative_themes": ["product_carousel", "ugc_testimonials", "offer_creative"],
+      "funnel_stage": "mid",
+      "tags": ["q2-2026", "meta", "prospecting", "performance"],
+      "notes": "CBO enabled. Testing 3 ad sets: LAL 1%, LAL 5%, Broad. Minimum 3 creative variants per ad set."
+    },
+    {
+      "id": "camp_meta_retarg_always_on",
+      "name": "Meta Retargeting — Always On",
+      "platform": "meta",
+      "account_id": "acc_perf_meta",
+      "team_id": "team_performance",
+      "status": "active",
+      "objective": "conversions",
+      "budget": {
+        "type": "daily",
+        "amount": 800,
+        "currency": "USD",
+        "pacing": "standard"
+      },
+      "start_date": "2026-01-01",
+      "targeting": {
+        "geo": ["US"],
+        "devices": ["mobile", "desktop"],
+        "custom_audiences": ["website_visitors_30d", "cart_abandoners_14d", "product_viewers_7d"]
+      },
+      "creative_themes": ["dynamic_product_ads", "cart_recovery_offer"],
+      "funnel_stage": "lower",
+      "tags": ["always-on", "meta", "retargeting", "performance"]
+    },
+    {
+      "id": "camp_linkedin_b2b_q2",
+      "name": "LinkedIn B2B Lead Gen — Q2 2026",
+      "platform": "linkedin",
+      "account_id": "acc_social_linkedin",
+      "team_id": "team_social",
+      "status": "active",
+      "objective": "lead_generation",
+      "budget": {
+        "type": "monthly",
+        "amount": 15000,
+        "currency": "USD",
+        "pacing": "standard"
+      },
+      "start_date": "2026-04-01",
+      "end_date": "2026-06-30",
+      "targeting": {
+        "geo": ["US", "CA", "GB"],
+        "audience_segments": [
+          "job_title_vp_marketing",
+          "job_title_director_marketing",
+          "company_size_500plus",
+          "industry_tech_software"
+        ]
+      },
+      "creative_themes": ["thought_leadership_whitepaper", "product_demo_request"],
+      "funnel_stage": "mid",
+      "tags": ["q2-2026", "linkedin", "b2b", "lead-gen"],
+      "notes": "CPL target: $150. Lead form connected to Salesforce via HubSpot integration. MQL threshold defined by sales ops."
+    },
+    {
+      "id": "camp_tiktok_awareness_q2",
+      "name": "TikTok Brand Awareness — Q2 2026",
+      "platform": "tiktok",
+      "account_id": "acc_social_tiktok",
+      "team_id": "team_social",
+      "status": "active",
+      "objective": "awareness",
+      "budget": {
+        "type": "monthly",
+        "amount": 25000,
+        "currency": "USD",
+        "pacing": "standard"
+      },
+      "start_date": "2026-04-01",
+      "end_date": "2026-06-30",
+      "targeting": {
+        "geo": ["US"],
+        "age_range": { "min": 18, "max": 34 },
+        "gender": "all",
+        "devices": ["mobile"]
+      },
+      "creative_themes": ["creator_ugc_partnerships", "product_in_use_vertical_video"],
+      "funnel_stage": "upper",
+      "tags": ["q2-2026", "tiktok", "awareness", "gen-z"],
+      "notes": "Working with 4 TikTok creators. Spark Ads enabled on organic creator posts. Frequency cap: 3x per week."
+    }
+  ]
+}

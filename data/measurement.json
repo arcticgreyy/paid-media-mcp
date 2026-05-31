@@ -1,0 +1,301 @@
+{
+  "measurement_setup": {
+    "tag_management": {
+      "system": "google_tag_manager",
+      "system_name": "Google Tag Manager",
+      "container_id": "GTM-XXXXXXX",
+      "implementation_type": "hybrid",
+      "server_side_endpoint": "https://sst.acmecorp.com",
+      "notes": "Client-side GTM container for standard event tracking. Server-side GTM container deployed on acmecorp.com subdomain (sst.acmecorp.com) for conversion signals that benefit from server-side fidelity (Meta CAPI, Google Enhanced Conversions). Server-side container managed by data engineering team. Client-side managed by marketing ops."
+    },
+    "pixels_and_tags": [
+      {
+        "id": "pixel_meta",
+        "name": "Meta Pixel",
+        "platform": "meta",
+        "pixel_id": "1234567890123456",
+        "implementation": "both",
+        "events_tracked": [
+          "PageView",
+          "ViewContent",
+          "AddToCart",
+          "InitiateCheckout",
+          "AddPaymentInfo",
+          "Purchase",
+          "Lead",
+          "CompleteRegistration",
+          "Search"
+        ],
+        "custom_parameters": [
+          "value",
+          "currency",
+          "content_ids",
+          "content_type",
+          "content_name",
+          "content_category",
+          "order_id",
+          "predicted_ltv"
+        ],
+        "notes": "Client-side Pixel fires on all standard events. Server-side CAPI fires on Purchase, Lead, and InitiateCheckout for improved iOS signal. Deduplication handled via event_id parameter passed in both client and server events. Pixel coverage: 98% of sessions."
+      },
+      {
+        "id": "pixel_google_ads",
+        "name": "Google Ads Conversion Tag",
+        "platform": "google_ads",
+        "pixel_id": "AW-XXXXXXXXX",
+        "implementation": "both",
+        "events_tracked": [
+          "purchase",
+          "add_to_cart",
+          "begin_checkout",
+          "generate_lead",
+          "page_view"
+        ],
+        "custom_parameters": [
+          "value",
+          "currency",
+          "transaction_id",
+          "items"
+        ],
+        "notes": "Google Ads tag fires via GTM. Enhanced Conversions enabled — hashes first-party data (email, phone, address) for improved match rate. Transaction ID passed for deduplication with GA4 imports. Conversion import from GA4 also configured as secondary signal."
+      },
+      {
+        "id": "pixel_ga4",
+        "name": "Google Analytics 4",
+        "platform": "google_ads",
+        "pixel_id": "G-XXXXXXXXXX",
+        "implementation": "client_side",
+        "events_tracked": [
+          "page_view",
+          "session_start",
+          "purchase",
+          "add_to_cart",
+          "begin_checkout",
+          "view_item",
+          "view_item_list",
+          "select_item",
+          "search",
+          "login",
+          "sign_up",
+          "generate_lead"
+        ],
+        "custom_parameters": [
+          "transaction_id",
+          "value",
+          "currency",
+          "items",
+          "user_id",
+          "customer_type",
+          "page_type",
+          "product_category"
+        ],
+        "notes": "GA4 primary analytics platform. Linked to Google Ads for conversion import and audience building. BigQuery export enabled — daily export to acme-analytics-prod dataset. User ID passed for cross-device attribution. Enhanced Measurement enabled for scroll, outbound clicks, video engagement."
+      },
+      {
+        "id": "pixel_linkedin",
+        "name": "LinkedIn Insight Tag",
+        "platform": "linkedin",
+        "pixel_id": "1234567",
+        "implementation": "client_side",
+        "events_tracked": [
+          "PageView",
+          "Lead",
+          "Purchase"
+        ],
+        "notes": "Insight Tag sitewide. Lead and Purchase conversion events for B2B campaigns. Also enables LinkedIn Audience Network retargeting and demographic data overlay in GA4."
+      },
+      {
+        "id": "pixel_tiktok",
+        "name": "TikTok Pixel",
+        "platform": "tiktok",
+        "pixel_id": "CXXXXXXXXXXXXXXXXX",
+        "implementation": "client_side",
+        "events_tracked": [
+          "PageView",
+          "ViewContent",
+          "AddToCart",
+          "PlaceAnOrder",
+          "CompletePayment"
+        ],
+        "notes": "Client-side only. TikTok Events API (server-side) planned for Q3 2026."
+      },
+      {
+        "id": "pixel_dv360_floodlight",
+        "name": "CM360 Floodlight Tags",
+        "platform": "dv360",
+        "pixel_id": "DC-XXXXXXXX",
+        "implementation": "client_side",
+        "events_tracked": [
+          "purchase",
+          "lead",
+          "page_view",
+          "add_to_cart"
+        ],
+        "notes": "Floodlight tags managed in CM360. Global site tag deployed via GTM. U-variable capture configured — see CM360 setup section."
+      }
+    ],
+    "conversion_apis": [
+      {
+        "id": "capi_meta",
+        "platform": "meta",
+        "api_name": "Meta Conversions API (CAPI)",
+        "implementation": "both",
+        "events_sent": [
+          "Purchase",
+          "InitiateCheckout",
+          "Lead"
+        ],
+        "match_rate_estimate_pct": 87,
+        "deduplication_method": "event_id — same event_id sent via Pixel and CAPI; Meta deduplicates on their end",
+        "notes": "Implemented via server-side GTM container using Stape.io CAPI gateway. Payload includes: event_id, event_time, user_data (hashed email + phone + IP + user_agent), custom_data (value, currency, order_id). Match rate improved from 68% to 87% after adding phone hash. Review match rate monthly in Events Manager."
+      },
+      {
+        "id": "ec_google",
+        "platform": "google_ads",
+        "api_name": "Google Enhanced Conversions",
+        "implementation": "both",
+        "events_sent": [
+          "purchase",
+          "generate_lead"
+        ],
+        "match_rate_estimate_pct": 82,
+        "deduplication_method": "Google deduplicates automatically via gclid + enhanced conversion data match",
+        "notes": "Enhanced Conversions sends hashed first-party data (email, phone, name, address) alongside conversion tag. Implemented via GTM Enhanced Conversions template. Data is hashed client-side before sending. Match rate reported in Google Ads > Conversions > Diagnostics."
+      }
+    ],
+    "cm360": {
+      "account_id": "7654321",
+      "floodlight_configuration_id": "FL-XXXXXXXX",
+      "u_variables": [
+        {
+          "variable": "u1",
+          "name": "order_id",
+          "type": "string",
+          "description": "Unique order/transaction ID. Used for deduplication and revenue reconciliation.",
+          "example_value": "ORD-2026-00123456"
+        },
+        {
+          "variable": "u2",
+          "name": "order_value",
+          "type": "number",
+          "description": "Order revenue value in USD at time of purchase.",
+          "example_value": "149.99"
+        },
+        {
+          "variable": "u3",
+          "name": "product_category",
+          "type": "string",
+          "description": "Top-level product category of items purchased.",
+          "example_value": "home_decor"
+        },
+        {
+          "variable": "u4",
+          "name": "customer_type",
+          "type": "string",
+          "description": "New vs returning customer at time of conversion.",
+          "example_value": "new_customer"
+        },
+        {
+          "variable": "u5",
+          "name": "items_count",
+          "type": "number",
+          "description": "Number of line items in the order.",
+          "example_value": "3"
+        },
+        {
+          "variable": "u6",
+          "name": "promo_code",
+          "type": "string",
+          "description": "Promotional code applied to the order, if any.",
+          "example_value": "SUMMER30"
+        }
+      ],
+      "custom_channels": [
+        "Paid Search",
+        "Paid Social",
+        "Programmatic Display",
+        "Programmatic Video",
+        "Direct"
+      ],
+      "notes": "Floodlight tags deployed via GTM. U-variables populated from the dataLayer on purchase confirmation page. All CM360 reports use order_id (u1) as the primary deduplication key."
+    },
+    "website_data_capture": {
+      "data_layer_implemented": true,
+      "data_layer_spec_url": "https://docs.google.com/document/d/ACME_DATALAYER_SPEC",
+      "data_layer_variables": [
+        "pageType",
+        "userId",
+        "customerType",
+        "sessionId",
+        "transactionId",
+        "transactionRevenue",
+        "transactionTax",
+        "transactionShipping",
+        "transactionProducts",
+        "productId",
+        "productName",
+        "productCategory",
+        "productPrice",
+        "productQuantity",
+        "cartValue",
+        "promoCode",
+        "pageCategory",
+        "searchTerm",
+        "loginStatus"
+      ],
+      "analytics_platform": "Google Analytics 4",
+      "analytics_property_id": "G-XXXXXXXXXX",
+      "first_party_cookies_implemented": true,
+      "cookie_domain": ".acmecorp.com",
+      "cookie_session_duration": "13 months",
+      "cookie_data_captured": [
+        "_ga (GA4 client ID)",
+        "_gcl_aw (Google Ads click ID / GCLID)",
+        "_fbc (Meta click ID)",
+        "_fbp (Meta browser ID)",
+        "acme_session_id (first-party session identifier)",
+        "acme_user_id (first-party user identifier, set post-login)"
+      ],
+      "notes": "First-party cookies set on .acmecorp.com domain via server-side GTM to avoid ITP/browser restrictions. GCLID and FBC values captured and stored in first-party cookie to extend attribution window beyond 7 days. Cookie consent managed via OneTrust — analytics and marketing cookies require opt-in in EU. US: opt-out model."
+    },
+    "measurement_partners": [
+      {
+        "id": "mp_northstar",
+        "name": "Northstar MMM (Marketing Mix Modeling)",
+        "type": "mmm",
+        "status": "active",
+        "platforms_covered": ["google_ads", "meta", "dv360", "linkedin", "tiktok"],
+        "cadence": "quarterly",
+        "contact": "northstar-team@northstarmeasurement.com",
+        "notes": "Quarterly MMM run covers all paid channels plus organic, email, and offline. Output: contribution by channel, diminishing returns curves, optimal budget allocation. Last run: Q1 2026. Results used for Q2 budget reallocation. Data feed: weekly spend and impressions per channel sent to Northstar via automated Looker Studio export."
+      },
+      {
+        "id": "mp_meta_lift",
+        "name": "Meta Conversion Lift Studies",
+        "type": "incrementality",
+        "status": "active",
+        "platforms_covered": ["meta"],
+        "cadence": "quarterly",
+        "contact": "meta-rep@fb.com",
+        "notes": "Holdout-based incrementality tests run quarterly through Meta. Control group (2-5% holdout) receives no ads. Measures true incremental conversions driven by Meta spend. Last study Q4 2025 showed 34% of Meta-attributed conversions were incremental. Results used to apply an incrementality adjustment factor to Meta ROAS reporting."
+      },
+      {
+        "id": "mp_google_reach",
+        "name": "Google Reach Planner & Brand Lift",
+        "type": "brand_lift",
+        "status": "active",
+        "platforms_covered": ["google_ads", "youtube", "dv360"],
+        "cadence": "quarterly",
+        "notes": "Brand lift surveys run on YouTube and DV360 campaigns spending >$75k/quarter. Measures ad recall, brand awareness, consideration lift. Managed through Google Ads UI. Results feed into brand team quarterly reporting."
+      },
+      {
+        "id": "mp_neustar",
+        "name": "Neustar Identity Resolution",
+        "type": "identity",
+        "status": "evaluating",
+        "platforms_covered": ["meta", "google_ads", "dv360"],
+        "notes": "Under evaluation for cross-device identity resolution and offline-to-online attribution. POC scheduled Q3 2026."
+      }
+    ]
+  }
+}

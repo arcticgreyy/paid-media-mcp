@@ -1,0 +1,108 @@
+{
+  "team_members": [
+    {
+      "id": "user_sarah",
+      "name": "Sarah Chen",
+      "email": "sarah.chen@acmecorp.com",
+      "role": "manager",
+      "team_ids": ["team_brand"],
+      "platform_specialties": ["dv360", "youtube", "google_ads"],
+      "responsibilities": [
+        "Brand campaign strategy and planning",
+        "DV360 programmatic buys",
+        "Brand lift measurement",
+        "Agency relationship management"
+      ],
+      "notes": "Primary contact for brand safety and creative approvals. Manages agency partner Publicis."
+    },
+    {
+      "id": "user_james",
+      "name": "James O'Brien",
+      "email": "james.obrien@acmecorp.com",
+      "role": "media_buyer",
+      "team_ids": ["team_brand"],
+      "platform_specialties": ["dv360", "youtube"],
+      "responsibilities": [
+        "DV360 campaign execution",
+        "YouTube video campaigns",
+        "Audience segment management",
+        "Weekly pacing reports"
+      ]
+    },
+    {
+      "id": "user_mike",
+      "name": "Mike Rodriguez",
+      "email": "mike.rodriguez@acmecorp.com",
+      "role": "director",
+      "team_ids": ["team_performance"],
+      "platform_specialties": ["google_ads", "meta"],
+      "responsibilities": [
+        "Performance team leadership",
+        "ROAS and CPA target setting",
+        "Budget allocation across channels",
+        "Executive reporting"
+      ],
+      "notes": "Reports to VP Marketing. Owns the acquisition budget P&L. Primary stakeholder for attribution model decisions."
+    },
+    {
+      "id": "user_priya",
+      "name": "Priya Nair",
+      "email": "priya.nair@acmecorp.com",
+      "role": "media_buyer",
+      "team_ids": ["team_performance"],
+      "platform_specialties": ["meta"],
+      "responsibilities": [
+        "Meta Ads campaign management",
+        "Audience creation and testing",
+        "Creative A/B testing",
+        "Weekly Meta performance reporting"
+      ],
+      "notes": "Meta Blueprint certified. Runs weekly creative tests — minimum 3 variants per ad set."
+    },
+    {
+      "id": "user_carlos",
+      "name": "Carlos Mendez",
+      "email": "carlos.mendez@acmecorp.com",
+      "role": "media_buyer",
+      "team_ids": ["team_performance"],
+      "platform_specialties": ["google_ads"],
+      "responsibilities": [
+        "Google Ads Search and Shopping",
+        "Performance Max campaigns",
+        "Keyword strategy and bid management",
+        "Search term report analysis"
+      ],
+      "notes": "Google Ads certified. Manages Smart Bidding strategies; target CPA and target ROAS portfolios."
+    },
+    {
+      "id": "user_aisha",
+      "name": "Aisha Williams",
+      "email": "aisha.williams@acmecorp.com",
+      "role": "manager",
+      "team_ids": ["team_social"],
+      "platform_specialties": ["linkedin", "tiktok", "snapchat"],
+      "responsibilities": [
+        "Paid social strategy",
+        "LinkedIn B2B lead gen",
+        "TikTok content partnerships",
+        "New platform evaluation"
+      ],
+      "notes": "Owns relationship with TikTok account team. Quarterly new platform pilots — current test: Pinterest."
+    },
+    {
+      "id": "user_tom",
+      "name": "Tom Patel",
+      "email": "tom.patel@acmecorp.com",
+      "role": "analyst",
+      "team_ids": ["team_social", "team_brand"],
+      "platform_specialties": ["linkedin", "tiktok"],
+      "responsibilities": [
+        "Cross-team reporting and dashboards",
+        "Looker Studio dashboard maintenance",
+        "Data QA and discrepancy investigation",
+        "Monthly executive reports"
+      ],
+      "notes": "Shared resource across social and brand teams. Owns the Looker Studio reporting suite."
+    }
+  ]
+}

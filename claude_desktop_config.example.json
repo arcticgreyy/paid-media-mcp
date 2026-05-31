@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "paid-media": {
+      "command": "node",
+      "args": ["/absolute/path/to/paid-media-mcp/dist/index.js"],
+      "env": {
+        "PAID_MEDIA_DATA_DIR": "/absolute/path/to/paid-media-mcp/data"
+      }
+    }
+  }
+}

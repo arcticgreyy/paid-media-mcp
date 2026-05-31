@@ -1,0 +1,246 @@
+{
+  "records": [
+    {
+      "campaign_id": "camp_perf_search_always_on",
+      "date": "2026-05-01",
+      "metrics": {
+        "impressions": 125000,
+        "clicks": 4200,
+        "spend": 1850.00,
+        "ctr": 3.36,
+        "cpc": 0.44,
+        "cpm": 14.80,
+        "conversions": 310,
+        "conversion_value": 12400.00,
+        "cpa": 5.97,
+        "roas": 6.70
+      }
+    },
+    {
+      "campaign_id": "camp_perf_search_always_on",
+      "date": "2026-05-02",
+      "metrics": {
+        "impressions": 130000,
+        "clicks": 4450,
+        "spend": 1920.00,
+        "ctr": 3.42,
+        "cpc": 0.43,
+        "cpm": 14.77,
+        "conversions": 325,
+        "conversion_value": 13000.00,
+        "cpa": 5.91,
+        "roas": 6.77
+      }
+    },
+    {
+      "campaign_id": "camp_perf_search_always_on",
+      "date": "2026-05-03",
+      "metrics": {
+        "impressions": 115000,
+        "clicks": 3800,
+        "spend": 1700.00,
+        "ctr": 3.30,
+        "cpc": 0.45,
+        "cpm": 14.78,
+        "conversions": 280,
+        "conversion_value": 11200.00,
+        "cpa": 6.07,
+        "roas": 6.59
+      }
+    },
+    {
+      "campaign_id": "camp_meta_prosp_q2",
+      "date": "2026-05-01",
+      "metrics": {
+        "impressions": 850000,
+        "clicks": 6800,
+        "spend": 2450.00,
+        "reach": 520000,
+        "frequency": 1.63,
+        "ctr": 0.80,
+        "cpc": 0.36,
+        "cpm": 2.88,
+        "conversions": 145,
+        "conversion_value": 5800.00,
+        "cpa": 16.90,
+        "roas": 2.37
+      }
+    },
+    {
+      "campaign_id": "camp_meta_prosp_q2",
+      "date": "2026-05-02",
+      "metrics": {
+        "impressions": 920000,
+        "clicks": 7200,
+        "spend": 2500.00,
+        "reach": 550000,
+        "frequency": 1.67,
+        "ctr": 0.78,
+        "cpc": 0.35,
+        "cpm": 2.72,
+        "conversions": 160,
+        "conversion_value": 6400.00,
+        "cpa": 15.63,
+        "roas": 2.56
+      }
+    },
+    {
+      "campaign_id": "camp_meta_retarg_always_on",
+      "date": "2026-05-01",
+      "metrics": {
+        "impressions": 180000,
+        "clicks": 3600,
+        "spend": 780.00,
+        "reach": 95000,
+        "frequency": 1.89,
+        "ctr": 2.00,
+        "cpc": 0.22,
+        "cpm": 4.33,
+        "conversions": 198,
+        "conversion_value": 9900.00,
+        "cpa": 3.94,
+        "roas": 12.69
+      }
+    },
+    {
+      "campaign_id": "camp_meta_retarg_always_on",
+      "date": "2026-05-02",
+      "metrics": {
+        "impressions": 175000,
+        "clicks": 3500,
+        "spend": 800.00,
+        "reach": 92000,
+        "frequency": 1.90,
+        "ctr": 2.00,
+        "cpc": 0.23,
+        "cpm": 4.57,
+        "conversions": 192,
+        "conversion_value": 9600.00,
+        "cpa": 4.17,
+        "roas": 12.00
+      }
+    },
+    {
+      "campaign_id": "camp_brand_awareness_q2",
+      "date": "2026-05-01",
+      "metrics": {
+        "impressions": 1250000,
+        "clicks": 3125,
+        "spend": 2100.00,
+        "reach": 850000,
+        "frequency": 1.47,
+        "ctr": 0.25,
+        "cpc": 0.67,
+        "cpm": 1.68,
+        "video_views": 425000,
+        "video_view_rate": 34.0
+      }
+    },
+    {
+      "campaign_id": "camp_brand_awareness_q2",
+      "date": "2026-05-02",
+      "metrics": {
+        "impressions": 1300000,
+        "clicks": 3250,
+        "spend": 2200.00,
+        "reach": 880000,
+        "frequency": 1.48,
+        "ctr": 0.25,
+        "cpc": 0.68,
+        "cpm": 1.69,
+        "video_views": 442000,
+        "video_view_rate": 34.0
+      }
+    },
+    {
+      "campaign_id": "camp_linkedin_b2b_q2",
+      "date": "2026-05-01",
+      "metrics": {
+        "impressions": 45000,
+        "clicks": 810,
+        "spend": 520.00,
+        "ctr": 1.80,
+        "cpc": 0.64,
+        "cpm": 11.56,
+        "conversions": 12,
+        "cpa": 43.33
+      }
+    },
+    {
+      "campaign_id": "camp_linkedin_b2b_q2",
+      "date": "2026-05-02",
+      "metrics": {
+        "impressions": 47000,
+        "clicks": 850,
+        "spend": 540.00,
+        "ctr": 1.81,
+        "cpc": 0.64,
+        "cpm": 11.49,
+        "conversions": 14,
+        "cpa": 38.57
+      }
+    }
+  ],
+  "benchmarks": [
+    {
+      "platform": "google_ads",
+      "objective": "conversions",
+      "industry": "e-commerce",
+      "avg_ctr": 2.69,
+      "avg_cpc": 1.33,
+      "avg_cpm": null,
+      "avg_cpa": 33.52,
+      "avg_roas": 3.5
+    },
+    {
+      "platform": "meta",
+      "objective": "conversions",
+      "industry": "e-commerce",
+      "avg_ctr": 0.90,
+      "avg_cpc": 1.72,
+      "avg_cpm": 14.40,
+      "avg_cpa": 19.68,
+      "avg_roas": 2.8
+    },
+    {
+      "platform": "meta",
+      "objective": "awareness",
+      "industry": "e-commerce",
+      "avg_ctr": 0.68,
+      "avg_cpc": null,
+      "avg_cpm": 7.60,
+      "avg_cpa": null,
+      "avg_roas": null
+    },
+    {
+      "platform": "linkedin",
+      "objective": "lead_generation",
+      "industry": "b2b_software",
+      "avg_ctr": 0.65,
+      "avg_cpc": 5.26,
+      "avg_cpm": 33.80,
+      "avg_cpa": 75.00,
+      "avg_roas": null
+    },
+    {
+      "platform": "dv360",
+      "objective": "awareness",
+      "industry": "e-commerce",
+      "avg_ctr": 0.10,
+      "avg_cpc": null,
+      "avg_cpm": 3.00,
+      "avg_cpa": null,
+      "avg_roas": null
+    },
+    {
+      "platform": "tiktok",
+      "objective": "awareness",
+      "industry": "e-commerce",
+      "avg_ctr": 1.00,
+      "avg_cpc": null,
+      "avg_cpm": 9.50,
+      "avg_cpa": null,
+      "avg_roas": null
+    }
+  ]
+}

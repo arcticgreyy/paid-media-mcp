@@ -1,0 +1,46 @@
+{
+  "teams": [
+    {
+      "id": "team_brand",
+      "name": "Brand & Awareness",
+      "description": "Manages upper-funnel brand campaigns focused on reach, awareness, and video across display and programmatic channels.",
+      "objectives": ["awareness", "reach", "video_views"],
+      "primary_kpis": ["impressions", "reach", "frequency", "cpm", "brand_lift", "video_completion_rate"],
+      "account_ids": ["acc_brand_gads", "acc_brand_dv360"],
+      "member_ids": ["user_sarah", "user_james"],
+      "lead_id": "user_sarah",
+      "platforms": ["google_ads", "dv360", "youtube"],
+      "reporting_cadence": "weekly",
+      "budget_owner": "vp_marketing",
+      "notes": "Brand lift studies run quarterly via Nielsen. All campaigns must follow brand safety guidelines in brand_guidelines.pdf."
+    },
+    {
+      "id": "team_performance",
+      "name": "Performance & Acquisition",
+      "description": "Drives direct response: leads, purchases, and app installs. Manages the full conversion funnel from prospecting to retargeting.",
+      "objectives": ["conversions", "lead_generation", "traffic"],
+      "primary_kpis": ["roas", "cpa", "cpc", "conversions", "conversion_rate", "revenue"],
+      "account_ids": ["acc_perf_meta", "acc_perf_gads"],
+      "member_ids": ["user_mike", "user_priya", "user_carlos"],
+      "lead_id": "user_mike",
+      "platforms": ["google_ads", "meta"],
+      "reporting_cadence": "daily",
+      "budget_owner": "director_acquisition",
+      "notes": "ROAS target is 4.0x blended. CPA targets vary by product line — see team_objectives.json. Weekly budget reviews every Monday 9am."
+    },
+    {
+      "id": "team_social",
+      "name": "Paid Social & Emerging",
+      "description": "Manages paid social across LinkedIn (B2B) and TikTok/Snap (B2C awareness). Tests new platforms before scaling.",
+      "objectives": ["awareness", "engagement", "lead_generation"],
+      "primary_kpis": ["engagements", "engagement_rate", "cpe", "reach", "cpl"],
+      "account_ids": ["acc_social_linkedin", "acc_social_tiktok"],
+      "member_ids": ["user_aisha", "user_tom"],
+      "lead_id": "user_aisha",
+      "platforms": ["linkedin", "tiktok", "snapchat", "pinterest"],
+      "reporting_cadence": "weekly",
+      "budget_owner": "vp_marketing",
+      "notes": "LinkedIn focus is B2B lead gen (MQL targets set by sales ops). TikTok is brand/awareness with 18-34 demo focus."
+    }
+  ]
+}

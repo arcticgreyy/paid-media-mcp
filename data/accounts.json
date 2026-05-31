@@ -1,0 +1,74 @@
+{
+  "accounts": [
+    {
+      "id": "acc_brand_gads",
+      "name": "Acme Brand — Google Ads",
+      "platform": "google_ads",
+      "platform_account_id": "123-456-7890",
+      "team_id": "team_brand",
+      "status": "active",
+      "currency": "USD",
+      "timezone": "America/New_York",
+      "monthly_budget": 50000,
+      "notes": "Brand campaigns only — no performance/DR campaigns in this account"
+    },
+    {
+      "id": "acc_brand_dv360",
+      "name": "Acme Brand — DV360",
+      "platform": "dv360",
+      "platform_account_id": "DV-XXXXXXX",
+      "team_id": "team_brand",
+      "status": "active",
+      "currency": "USD",
+      "timezone": "America/New_York",
+      "monthly_budget": 80000,
+      "notes": "Programmatic display and video via DV360"
+    },
+    {
+      "id": "acc_perf_meta",
+      "name": "Acme Performance — Meta",
+      "platform": "meta",
+      "platform_account_id": "act_9876543210",
+      "team_id": "team_performance",
+      "status": "active",
+      "currency": "USD",
+      "timezone": "America/Los_Angeles",
+      "monthly_budget": 120000,
+      "notes": "DR and conversion campaigns; retargeting and prospecting separated by campaign"
+    },
+    {
+      "id": "acc_perf_gads",
+      "name": "Acme Performance — Google Ads",
+      "platform": "google_ads",
+      "platform_account_id": "987-654-3210",
+      "team_id": "team_performance",
+      "status": "active",
+      "currency": "USD",
+      "timezone": "America/Los_Angeles",
+      "monthly_budget": 150000,
+      "notes": "Search, Shopping, and PMax campaigns"
+    },
+    {
+      "id": "acc_social_linkedin",
+      "name": "Acme B2B — LinkedIn",
+      "platform": "linkedin",
+      "platform_account_id": "lin_12345",
+      "team_id": "team_social",
+      "status": "active",
+      "currency": "USD",
+      "timezone": "America/New_York",
+      "monthly_budget": 20000
+    },
+    {
+      "id": "acc_social_tiktok",
+      "name": "Acme Social — TikTok",
+      "platform": "tiktok",
+      "platform_account_id": "tt_9988776655",
+      "team_id": "team_social",
+      "status": "active",
+      "currency": "USD",
+      "timezone": "America/New_York",
+      "monthly_budget": 30000
+    }
+  ]
+}

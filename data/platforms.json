@@ -1,0 +1,369 @@
+{
+  "platforms": {
+    "dv360": {
+      "id": "dv360",
+      "name": "Display & Video 360",
+      "notes": "SDF (Structured Data Files) is the bulk upload format for DV360. Files are CSVs uploaded via the DV360 UI or API. Multiple files required per upload depending on what entities you are creating/editing.",
+      "bulk_upload": {
+        "format": "SDF (Structured Data Files)",
+        "version": "7",
+        "documentation_url": "https://developers.google.com/display-video/api/structured-data-file/v7",
+        "upload_instructions": "DV360 UI: navigate to the relevant Advertiser > click the upload icon (↑) > select SDF > choose SDF version 7 > upload ZIP containing all CSV files. Alternatively use the DV360 API (sdfdownloadtasks). For new entities, leave the ID column blank. For edits, include the existing ID.",
+        "file_naming_notes": "ZIP all CSV files together for multi-entity uploads. Individual files: SDF_Campaign.csv, SDF_InsertionOrder.csv, SDF_LineItem.csv, SDF_AdGroup.csv, SDF_Ad.csv",
+        "entities": [
+          {
+            "entity_type": "campaign",
+            "filename": "SDF_Campaign.csv",
+            "description": "Top-level campaign entity. Defines the goal, total budget, and flight dates.",
+            "fields": [
+              { "column_name": "Campaign Id", "description": "Leave blank for new campaigns. Include existing ID for edits.", "required": false, "data_type": "string", "example": "123456789" },
+              { "column_name": "Name", "description": "Campaign name. Must be unique within the advertiser.", "required": true, "data_type": "string", "example": "Brand_Awareness_Q3_2026" },
+              { "column_name": "Status", "description": "Campaign status.", "required": true, "data_type": "enum", "valid_values": ["Active", "Paused", "Draft"], "default_value": "Draft" },
+              { "column_name": "Campaign Goal", "description": "Primary campaign objective.", "required": true, "data_type": "enum", "valid_values": ["Brand Awareness & Reach", "Drive Online Sales", "Drive App Installs or Engagements", "Drive Website Traffic", "Drive Offline or In-Store Sales", "Other"] },
+              { "column_name": "Campaign Goal KPI", "description": "KPI used to measure the campaign goal.", "required": true, "data_type": "enum", "valid_values": ["Impressions", "Viewable Impressions", "Clicks", "CTR", "CPA", "CPC", "CPM", "CPIAVC", "ROAS", "% Viewability", "Custom"] },
+              { "column_name": "Campaign Goal KPI Value", "description": "Target value for the KPI (e.g. 2.50 for $2.50 CPM). Leave blank if KPI is Impressions or Clicks.", "required": false, "data_type": "number", "example": "2.50" },
+              { "column_name": "Total Budget", "description": "Total campaign budget in account currency. Leave blank for no cap.", "required": false, "data_type": "number", "example": "150000" },
+              { "column_name": "Start Date", "description": "Campaign start date.", "required": true, "data_type": "date", "example": "07/01/2026", "notes": "Format: MM/DD/YYYY" },
+              { "column_name": "End Date", "description": "Campaign end date. Leave blank for campaigns with no fixed end date.", "required": false, "data_type": "date", "example": "09/30/2026", "notes": "Format: MM/DD/YYYY" },
+              { "column_name": "Frequency Cap", "description": "Maximum number of impressions per user per period.", "required": false, "data_type": "number", "example": "3" },
+              { "column_name": "Frequency Cap Exposure", "description": "Unit of frequency cap (always Impressions).", "required": false, "data_type": "enum", "valid_values": ["Impressions"], "default_value": "Impressions" },
+              { "column_name": "Frequency Cap Period", "description": "Time period for frequency cap.", "required": false, "data_type": "enum", "valid_values": ["Days", "Weeks", "Months"] },
+              { "column_name": "Demographic Targeting Gender", "description": "Gender targeting. Separate multiple values with semicolons.", "required": false, "data_type": "string", "valid_values": ["Female", "Male", "Unknown"], "example": "Female;Male" },
+              { "column_name": "Demographic Targeting Age", "description": "Age targeting. Separate multiple values with semicolons.", "required": false, "data_type": "string", "valid_values": ["18-24", "25-34", "35-44", "45-54", "55-64", "65+", "Unknown"], "example": "25-34;35-44;45-54" }
+            ]
+          },
+          {
+            "entity_type": "insertion_order",
+            "filename": "SDF_InsertionOrder.csv",
+            "description": "Mid-level entity grouping line items under a campaign. Controls budget, pacing, and performance goals at the IO level.",
+            "fields": [
+              { "column_name": "Io Id", "description": "Leave blank for new IOs. Include existing ID for edits.", "required": false, "data_type": "string", "example": "987654321" },
+              { "column_name": "Campaign Id", "description": "ID of the parent campaign.", "required": true, "data_type": "string", "example": "123456789" },
+              { "column_name": "Name", "description": "IO name.", "required": true, "data_type": "string", "example": "Brand_Display_US_Q3_2026" },
+              { "column_name": "Type", "description": "IO type. RTB for standard display/video; Over-The-Top for CTV.", "required": true, "data_type": "enum", "valid_values": ["RTB", "Over-The-Top"] },
+              { "column_name": "Status", "description": "IO status.", "required": true, "data_type": "enum", "valid_values": ["Active", "Draft", "Paused"], "default_value": "Draft" },
+              { "column_name": "Start Date", "description": "IO start date.", "required": true, "data_type": "date", "example": "07/01/2026", "notes": "Format: MM/DD/YYYY" },
+              { "column_name": "End Date", "description": "IO end date.", "required": true, "data_type": "date", "example": "09/30/2026" },
+              { "column_name": "Budget Type", "description": "Whether the IO has a fixed budget or runs until paused.", "required": true, "data_type": "enum", "valid_values": ["Fixed", "Infinite"] },
+              { "column_name": "Budget Amount", "description": "Total IO budget in account currency. Required if Budget Type is Fixed.", "required": false, "data_type": "number", "example": "50000" },
+              { "column_name": "Pacing", "description": "How the budget paces across the flight.", "required": true, "data_type": "enum", "valid_values": ["Daily", "Monthly", "ASAP", "Flight"] },
+              { "column_name": "Pacing Rate", "description": "Speed at which budget is spent within the pacing period.", "required": true, "data_type": "enum", "valid_values": ["ASAP", "Even", "Ahead"] },
+              { "column_name": "Frequency Cap", "description": "IO-level frequency cap (overrides campaign if more restrictive).", "required": false, "data_type": "number", "example": "5" },
+              { "column_name": "Frequency Cap Period", "description": "Period for IO frequency cap.", "required": false, "data_type": "enum", "valid_values": ["Days", "Weeks", "Months"] },
+              { "column_name": "Performance Goal Type", "description": "KPI for auto-bidding at the IO level.", "required": true, "data_type": "enum", "valid_values": ["CPA", "CPC", "CPM", "CTR", "Percentage", "ROAS", "Viewability", "None"] },
+              { "column_name": "Performance Goal Value", "description": "Target value for the performance goal.", "required": false, "data_type": "number", "example": "1.50" },
+              { "column_name": "Auto Budget Allocation", "description": "Enable DV360 to automatically shift budget between line items.", "required": false, "data_type": "enum", "valid_values": ["TRUE", "FALSE"], "default_value": "FALSE" }
+            ]
+          },
+          {
+            "entity_type": "line_item",
+            "filename": "SDF_LineItem.csv",
+            "description": "Core buying unit within an IO. Controls targeting, bidding, creative, and placement-level settings.",
+            "fields": [
+              { "column_name": "Line Item Id", "description": "Leave blank for new LIs. Include existing ID for edits.", "required": false, "data_type": "string" },
+              { "column_name": "Io Id", "description": "ID of the parent insertion order.", "required": true, "data_type": "string" },
+              { "column_name": "Name", "description": "Line item name.", "required": true, "data_type": "string", "example": "Brand_Display_Homeowners_US_LI" },
+              { "column_name": "Type", "description": "Line item type determines available inventory and creative formats.", "required": true, "data_type": "enum", "valid_values": ["Display", "Video", "Audio", "Over-The-Top", "Legacy Display"] },
+              { "column_name": "Status", "description": "Line item status.", "required": true, "data_type": "enum", "valid_values": ["Active", "Draft", "Paused"], "default_value": "Draft" },
+              { "column_name": "Start Date", "description": "Line item start date. Must be within IO flight.", "required": true, "data_type": "date", "example": "07/01/2026" },
+              { "column_name": "End Date", "description": "Line item end date.", "required": true, "data_type": "date", "example": "09/30/2026" },
+              { "column_name": "Budget Type", "description": "Fixed or unlimited budget for this line item.", "required": true, "data_type": "enum", "valid_values": ["Fixed", "Infinite"] },
+              { "column_name": "Budget Amount", "description": "Line item budget. Required if Budget Type is Fixed.", "required": false, "data_type": "number", "example": "15000" },
+              { "column_name": "Pacing", "description": "Budget pacing period.", "required": true, "data_type": "enum", "valid_values": ["Daily", "Monthly", "ASAP", "Flight"] },
+              { "column_name": "Pacing Rate", "description": "Pacing speed.", "required": true, "data_type": "enum", "valid_values": ["ASAP", "Even", "Ahead"] },
+              { "column_name": "Bid Strategy Type", "description": "How DV360 determines bids.", "required": true, "data_type": "enum", "valid_values": ["Fixed", "Optimize", "Minimize"] },
+              { "column_name": "Bid Price", "description": "Fixed CPM bid in account currency. Required if Bid Strategy Type is Fixed.", "required": false, "data_type": "number", "example": "3.50" },
+              { "column_name": "Bid Performance Goal Type", "description": "Goal metric for Optimize bidding.", "required": false, "data_type": "enum", "valid_values": ["CPA", "CPC", "CPM", "CPIAVC", "CTR", "ROAS", "Viewability"] },
+              { "column_name": "Bid Performance Goal Value", "description": "Target value for optimized bidding.", "required": false, "data_type": "number", "example": "0.75" },
+              { "column_name": "Max Average CPM", "description": "Maximum average CPM cap for optimized bidding.", "required": false, "data_type": "number", "example": "8.00" },
+              { "column_name": "Frequency Cap", "description": "Line item frequency cap.", "required": false, "data_type": "number", "example": "3" },
+              { "column_name": "Frequency Cap Period", "description": "Period for LI frequency cap.", "required": false, "data_type": "enum", "valid_values": ["Days", "Weeks", "Months"] },
+              { "column_name": "Geography Targeting Include", "description": "Geographic regions to include. Pipe-separated country/region codes.", "required": false, "data_type": "string", "example": "US;CA", "notes": "Use ISO 3166-1 alpha-2 country codes" },
+              { "column_name": "Audience Targeting Include", "description": "Audience segment IDs to include. Semicolon-separated.", "required": false, "data_type": "string" },
+              { "column_name": "Device Targeting Include", "description": "Device types to include.", "required": false, "data_type": "string", "valid_values": ["Desktop", "Smartphone", "Tablet", "Connected TV"], "example": "Desktop;Smartphone" },
+              { "column_name": "Browser Targeting Include", "description": "Browsers to include. Semicolon-separated.", "required": false, "data_type": "string" },
+              { "column_name": "Environment Targeting", "description": "Web/app environment targeting.", "required": false, "data_type": "enum", "valid_values": ["Browser", "App", "Browser and App"] },
+              { "column_name": "Viewability Targeting Active View", "description": "Minimum predicted viewability % to bid on.", "required": false, "data_type": "enum", "valid_values": ["10%", "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%"] }
+            ]
+          },
+          {
+            "entity_type": "ad_group",
+            "filename": "SDF_AdGroup.csv",
+            "description": "Ad group within a TrueView (YouTube) line item. Required only for YouTube video campaigns.",
+            "fields": [
+              { "column_name": "Ad Group Id", "description": "Leave blank for new ad groups.", "required": false, "data_type": "string" },
+              { "column_name": "Line Item Id", "description": "ID of the parent line item.", "required": true, "data_type": "string" },
+              { "column_name": "Name", "description": "Ad group name.", "required": true, "data_type": "string" },
+              { "column_name": "Status", "description": "Ad group status.", "required": true, "data_type": "enum", "valid_values": ["Active", "Paused"] },
+              { "column_name": "Max CPV Bid Price", "description": "Maximum cost-per-view bid for TrueView in-stream ads.", "required": false, "data_type": "number", "example": "0.08" },
+              { "column_name": "Target CPM Bid Price", "description": "Target CPM for non-skippable/bumper ads.", "required": false, "data_type": "number", "example": "5.00" },
+              { "column_name": "Audience Targeting Include", "description": "Audience segments to include.", "required": false, "data_type": "string" },
+              { "column_name": "Keyword Targeting Include", "description": "Keywords for contextual targeting. Semicolon-separated.", "required": false, "data_type": "string" }
+            ]
+          }
+        ],
+        "org_defaults": {
+          "campaign": {
+            "naming_convention": "{brand}_{objective}_{geo}_{quarter}_{year} e.g. acme_awareness_us_q3_2026",
+            "field_defaults": {
+              "Status": "Draft",
+              "Campaign Goal": "Brand Awareness & Reach",
+              "Campaign Goal KPI": "Impressions",
+              "Frequency Cap": "3",
+              "Frequency Cap Period": "Weeks"
+            },
+            "notes": "All campaigns created as Draft. Manager approves before activating. Use lowercase with underscores in names."
+          },
+          "insertion_order": {
+            "naming_convention": "{brand}_{format}_{audience}_{geo}_{quarter} e.g. acme_display_homeowners_us_q3",
+            "field_defaults": {
+              "Type": "RTB",
+              "Status": "Draft",
+              "Budget Type": "Fixed",
+              "Pacing": "Flight",
+              "Pacing Rate": "Even",
+              "Performance Goal Type": "CPM",
+              "Auto Budget Allocation": "FALSE"
+            },
+            "notes": "One IO per targeting segment/audience cluster as a best practice. Frequency cap set at IO level — do not duplicate at LI unless intentionally more restrictive."
+          },
+          "line_item": {
+            "naming_convention": "{io_name}_{targeting_description}_LI e.g. acme_display_homeowners_us_q3_in-market_LI",
+            "field_defaults": {
+              "Type": "Display",
+              "Status": "Draft",
+              "Budget Type": "Fixed",
+              "Pacing": "Flight",
+              "Pacing Rate": "Even",
+              "Bid Strategy Type": "Optimize",
+              "Bid Performance Goal Type": "CPM",
+              "Device Targeting Include": "Desktop;Smartphone;Tablet",
+              "Environment Targeting": "Browser and App",
+              "Viewability Targeting Active View": "40%"
+            },
+            "notes": "Default viewability threshold is 40%. Raise to 60%+ for brand safety-sensitive campaigns. Always set Device Targeting — default excludes CTV unless campaign is OTT."
+          }
+        }
+      }
+    },
+
+    "sa360": {
+      "id": "sa360",
+      "name": "Search Ads 360",
+      "notes": "SA360 Bulksheets are CSV/Excel files for bulk creating and editing campaigns across multiple search engines (Google Ads, Microsoft Ads). One bulksheet can contain multiple entity types — separate them by the 'Row type' column.",
+      "bulk_upload": {
+        "format": "Bulksheet (CSV)",
+        "documentation_url": "https://support.google.com/searchads/answer/7484439",
+        "upload_instructions": "SA360 UI: navigate to the Advertiser or Engine Account > Bulk Operations > Upload > select your bulksheet CSV. Validate before uploading using the 'Validate only' option. Errors appear in the upload history with row-level detail.",
+        "file_naming_notes": "Single CSV file containing all entity types. Use the 'Row type' column to distinguish campaigns, ad groups, keywords, and ads.",
+        "entities": [
+          {
+            "entity_type": "campaign",
+            "filename": "bulksheet.csv (Row type: campaign)",
+            "description": "Search campaign definition. One row per campaign.",
+            "fields": [
+              { "column_name": "Row type", "description": "Must be 'campaign' for campaign rows.", "required": true, "data_type": "enum", "valid_values": ["campaign"] },
+              { "column_name": "Action", "description": "Whether to create or edit this row.", "required": true, "data_type": "enum", "valid_values": ["Create", "Edit", "Delete", "Pause", "Enable"] },
+              { "column_name": "Campaign", "description": "Campaign name. Must be unique within the engine account.", "required": true, "data_type": "string", "example": "Brand_Search_AlwaysOn" },
+              { "column_name": "Campaign status", "description": "Campaign serving status.", "required": true, "data_type": "enum", "valid_values": ["Active", "Paused", "Deleted"] },
+              { "column_name": "Campaign type", "description": "Campaign type (Google Ads). Not required for Microsoft Ads.", "required": false, "data_type": "enum", "valid_values": ["Search", "Display", "Shopping", "Performance max", "Video", "Smart"], "example": "Search" },
+              { "column_name": "Campaign daily budget", "description": "Daily budget in account currency.", "required": true, "data_type": "number", "example": "500" },
+              { "column_name": "Campaign start date", "description": "Campaign start date.", "required": false, "data_type": "date", "example": "2026-07-01", "notes": "Format: YYYY-MM-DD" },
+              { "column_name": "Campaign end date", "description": "Campaign end date. Leave blank for always-on.", "required": false, "data_type": "date", "example": "2026-09-30" },
+              { "column_name": "Bid strategy type", "description": "Bidding strategy for the campaign.", "required": true, "data_type": "enum", "valid_values": ["Manual CPC", "Enhanced CPC", "Target CPA", "Target ROAS", "Maximize conversions", "Maximize conversion value", "Target impression share"] },
+              { "column_name": "Target CPA", "description": "Target cost per acquisition. Required if Bid strategy type is Target CPA.", "required": false, "data_type": "number", "example": "8.00" },
+              { "column_name": "Target ROAS", "description": "Target return on ad spend as a decimal (e.g. 5.0 = 500%). Required if Bid strategy type is Target ROAS.", "required": false, "data_type": "number", "example": "5.0" },
+              { "column_name": "Network (Google Search)", "description": "Whether to include Google Search Partners.", "required": false, "data_type": "enum", "valid_values": ["Google search", "Search partners"], "example": "Google search" },
+              { "column_name": "Ad rotation", "description": "How ads are rotated within an ad group.", "required": false, "data_type": "enum", "valid_values": ["Optimize", "Rotate indefinitely"] },
+              { "column_name": "Location", "description": "Geographic targeting. Use location names or codes.", "required": false, "data_type": "string", "example": "United States" },
+              { "column_name": "Location type", "description": "Inclusion or exclusion for location.", "required": false, "data_type": "enum", "valid_values": ["Location of presence", "Location of interest"] },
+              { "column_name": "Language", "description": "Language targeting.", "required": false, "data_type": "string", "example": "English" },
+              { "column_name": "Tracking template", "description": "URL tracking template with ValueTrack parameters.", "required": false, "data_type": "string", "example": "{lpurl}?utm_source=google&utm_medium=cpc&utm_campaign={campaignid}" },
+              { "column_name": "Custom parameter", "description": "Custom URL parameters for tracking.", "required": false, "data_type": "string", "example": "_dct={campaignid}&_dca={adgroupid}" }
+            ]
+          },
+          {
+            "entity_type": "ad_group",
+            "filename": "bulksheet.csv (Row type: ad group)",
+            "description": "Ad group within a campaign. Controls default bids and ad group-level targeting.",
+            "fields": [
+              { "column_name": "Row type", "description": "Must be 'ad group'.", "required": true, "data_type": "enum", "valid_values": ["ad group"] },
+              { "column_name": "Action", "description": "Create, Edit, Pause, Enable, or Delete.", "required": true, "data_type": "enum", "valid_values": ["Create", "Edit", "Delete", "Pause", "Enable"] },
+              { "column_name": "Campaign", "description": "Name of the parent campaign.", "required": true, "data_type": "string" },
+              { "column_name": "Ad group", "description": "Ad group name.", "required": true, "data_type": "string", "example": "Brand_Exact" },
+              { "column_name": "Ad group status", "description": "Serving status.", "required": true, "data_type": "enum", "valid_values": ["Active", "Paused", "Deleted"] },
+              { "column_name": "Ad group type", "description": "Ad group type for Google Ads.", "required": false, "data_type": "enum", "valid_values": ["Default", "Dynamic"] },
+              { "column_name": "Default max CPC", "description": "Default maximum CPC bid for keywords without individual bids.", "required": false, "data_type": "number", "example": "1.50" }
+            ]
+          },
+          {
+            "entity_type": "keyword",
+            "filename": "bulksheet.csv (Row type: keyword)",
+            "description": "Individual keyword targeting within an ad group.",
+            "fields": [
+              { "column_name": "Row type", "description": "Must be 'keyword'.", "required": true, "data_type": "enum", "valid_values": ["keyword"] },
+              { "column_name": "Action", "description": "Create, Edit, Pause, Enable, or Delete.", "required": true, "data_type": "enum", "valid_values": ["Create", "Edit", "Delete", "Pause", "Enable"] },
+              { "column_name": "Campaign", "description": "Parent campaign name.", "required": true, "data_type": "string" },
+              { "column_name": "Ad group", "description": "Parent ad group name.", "required": true, "data_type": "string" },
+              { "column_name": "Keyword", "description": "The keyword text.", "required": true, "data_type": "string", "example": "buy kitchen appliances online" },
+              { "column_name": "Match type", "description": "Keyword match type.", "required": true, "data_type": "enum", "valid_values": ["Exact", "Phrase", "Broad"] },
+              { "column_name": "Keyword status", "description": "Serving status.", "required": true, "data_type": "enum", "valid_values": ["Active", "Paused", "Deleted"] },
+              { "column_name": "Max CPC", "description": "Keyword-level max CPC. Overrides the ad group default.", "required": false, "data_type": "number", "example": "2.00" },
+              { "column_name": "Final URL", "description": "Landing page URL for this keyword.", "required": false, "data_type": "string", "example": "https://www.yoursite.com/kitchen-appliances" },
+              { "column_name": "Label", "description": "Labels for filtering and reporting. Semicolon-separated.", "required": false, "data_type": "string", "example": "branded;q3-2026" }
+            ]
+          },
+          {
+            "entity_type": "responsive_search_ad",
+            "filename": "bulksheet.csv (Row type: expanded text ad / responsive search ad)",
+            "description": "Responsive Search Ad (RSA) — Google's primary ad format. Provide up to 15 headlines and 4 descriptions.",
+            "fields": [
+              { "column_name": "Row type", "description": "Must be 'responsive search ad'.", "required": true, "data_type": "enum", "valid_values": ["responsive search ad"] },
+              { "column_name": "Action", "description": "Create, Edit, Pause, Enable, or Delete.", "required": true, "data_type": "enum", "valid_values": ["Create", "Edit", "Delete", "Pause", "Enable"] },
+              { "column_name": "Campaign", "description": "Parent campaign name.", "required": true, "data_type": "string" },
+              { "column_name": "Ad group", "description": "Parent ad group name.", "required": true, "data_type": "string" },
+              { "column_name": "Ad status", "description": "Serving status.", "required": true, "data_type": "enum", "valid_values": ["Active", "Paused", "Deleted"] },
+              { "column_name": "Headline 1", "description": "First headline. Max 30 characters.", "required": true, "data_type": "string", "example": "Shop Kitchen Appliances" },
+              { "column_name": "Headline 2", "description": "Second headline. Max 30 characters.", "required": true, "data_type": "string", "example": "Free Shipping on Orders $50+" },
+              { "column_name": "Headline 3", "description": "Third headline. Max 30 characters.", "required": true, "data_type": "string" },
+              { "column_name": "Headline 4", "description": "Optional headline. Max 30 characters.", "required": false, "data_type": "string" },
+              { "column_name": "Headline 5", "description": "Optional headline. Max 30 characters.", "required": false, "data_type": "string" },
+              { "column_name": "Headline 6", "description": "Optional headline. Max 30 characters.", "required": false, "data_type": "string" },
+              { "column_name": "Headline 7", "description": "Optional headline. Max 30 characters.", "required": false, "data_type": "string" },
+              { "column_name": "Headline 8", "description": "Optional headline. Max 30 characters.", "required": false, "data_type": "string" },
+              { "column_name": "Description 1", "description": "First description. Max 90 characters.", "required": true, "data_type": "string", "example": "Discover top-rated kitchen appliances. Shop now and save 30% on select items." },
+              { "column_name": "Description 2", "description": "Second description. Max 90 characters.", "required": true, "data_type": "string" },
+              { "column_name": "Description 3", "description": "Optional description. Max 90 characters.", "required": false, "data_type": "string" },
+              { "column_name": "Description 4", "description": "Optional description. Max 90 characters.", "required": false, "data_type": "string" },
+              { "column_name": "Display URL path 1", "description": "First path appended to display URL. Max 15 characters.", "required": false, "data_type": "string", "example": "Kitchen" },
+              { "column_name": "Display URL path 2", "description": "Second path appended to display URL. Max 15 characters.", "required": false, "data_type": "string", "example": "Appliances" },
+              { "column_name": "Final URL", "description": "Landing page URL.", "required": true, "data_type": "string", "example": "https://www.yoursite.com/kitchen-appliances" }
+            ]
+          }
+        ],
+        "org_defaults": {
+          "campaign": {
+            "naming_convention": "{brand}_{match_type}_{funnel_stage}_{geo} e.g. acme_exact_branded_us OR acme_broad_generic_us",
+            "field_defaults": {
+              "Campaign status": "Paused",
+              "Campaign type": "Search",
+              "Bid strategy type": "Target ROAS",
+              "Network (Google Search)": "Google search",
+              "Language": "English",
+              "Location": "United States"
+            },
+            "notes": "All campaigns created as Paused. Activate after QA review. Target ROAS default — switch to Target CPA for lead gen campaigns where revenue data unavailable. Always include tracking template with UTM parameters."
+          },
+          "keyword": {
+            "naming_convention": "No naming convention — keywords are the targeting signal themselves.",
+            "field_defaults": {
+              "Keyword status": "Paused",
+              "Match type": "Exact"
+            },
+            "notes": "Default to Exact match for new campaigns to control spend. Expand to Phrase/Broad after 4 weeks of data. Label all keywords with campaign quarter tag for easy filtering."
+          }
+        }
+      }
+    },
+
+    "cm360": {
+      "id": "cm360",
+      "name": "Campaign Manager 360",
+      "notes": "CM360 Trafficking Sheets are Excel (.xlsx) files for bulk trafficking campaigns, placements, and ads. The sheet has a specific column structure and must follow CM360's exact format — download the template from CM360 first and populate it. Upload via CM360 > Campaigns > Trafficking > Import.",
+      "bulk_upload": {
+        "format": "Trafficking Sheet (Excel .xlsx)",
+        "documentation_url": "https://support.google.com/campaignmanager/answer/2811494",
+        "upload_instructions": "CM360 UI: go to Campaigns > select or create a campaign > Trafficking > Import. Download the CM360 trafficking sheet template first (Trafficking > Export > empty template) to ensure correct column order and sheet names. Populate and upload. Errors shown per row in the import results dialog.",
+        "file_naming_notes": "Excel file with multiple tabs: 'Campaign', 'Placement', 'Ad', 'Creative'. Column order is fixed — always use the downloaded template as your base. Do not add or reorder columns.",
+        "entities": [
+          {
+            "entity_type": "placement",
+            "filename": "CM360_Trafficking_Sheet.xlsx — Placement tab",
+            "description": "Placement = an ad slot on a site or app. One row per placement. Placements belong to a campaign and are associated with sites (publishers).",
+            "fields": [
+              { "column_name": "Campaign ID", "description": "CM360 campaign ID. Required for all placements.", "required": true, "data_type": "string", "example": "12345678" },
+              { "column_name": "Placement ID", "description": "Leave blank for new placements. Include existing ID to edit.", "required": false, "data_type": "string" },
+              { "column_name": "Placement Name", "description": "Unique name for this placement.", "required": true, "data_type": "string", "example": "Acme_NYT_Leaderboard_728x90_Q3_2026" },
+              { "column_name": "Placement Type", "description": "Type of placement.", "required": true, "data_type": "enum", "valid_values": ["PLACEMENT_TYPE_DISPLAY", "PLACEMENT_TYPE_VIDEO", "PLACEMENT_TYPE_RICH_MEDIA", "PLACEMENT_TYPE_TRACKING", "PLACEMENT_TYPE_INTERSTITIAL_DISPLAY", "PLACEMENT_TYPE_INTERSTITIAL_VIDEO"] },
+              { "column_name": "Site Name (required)", "description": "The publisher site name as configured in CM360.", "required": true, "data_type": "string", "example": "NYTimes.com" },
+              { "column_name": "Dimension", "description": "Creative size for this placement.", "required": true, "data_type": "string", "example": "728x90" },
+              { "column_name": "Start Date", "description": "Placement start date.", "required": true, "data_type": "date", "example": "7/1/2026", "notes": "Format: M/D/YYYY" },
+              { "column_name": "End Date", "description": "Placement end date.", "required": true, "data_type": "date", "example": "9/30/2026" },
+              { "column_name": "Rate", "description": "CPM, CPC, or flat rate negotiated with publisher.", "required": false, "data_type": "number", "example": "12.00" },
+              { "column_name": "Rate Type", "description": "Pricing model for this placement.", "required": false, "data_type": "enum", "valid_values": ["CPM", "CPC", "CPA", "Flat rate"] },
+              { "column_name": "Units", "description": "Contracted impression/click volume. Used for delivery pacing.", "required": false, "data_type": "number", "example": "500000" },
+              { "column_name": "Placement Status", "description": "Active/inactive status.", "required": true, "data_type": "enum", "valid_values": ["PLACEMENT_STATUS_ACTIVE", "PLACEMENT_STATUS_INACTIVE", "PLACEMENT_STATUS_ARCHIVED"] },
+              { "column_name": "Compatibility", "description": "Environment for this placement.", "required": true, "data_type": "enum", "valid_values": ["DISPLAY", "DISPLAY_INTERSTITIAL", "APP", "APP_INTERSTITIAL", "IN_STREAM_VIDEO", "VIDEO_REDIRECT"] },
+              { "column_name": "Primary Click-Through URL", "description": "Default landing page URL for ads in this placement.", "required": false, "data_type": "string", "example": "https://www.yoursite.com" },
+              { "column_name": "Floodlight Activity", "description": "Floodlight activity to associate for view-through conversion tracking.", "required": false, "data_type": "string", "example": "Acme_Purchase_Confirmation" }
+            ]
+          },
+          {
+            "entity_type": "ad",
+            "filename": "CM360_Trafficking_Sheet.xlsx — Ad tab",
+            "description": "Ad = the specific creative served in a placement. Links a creative to a placement with targeting and scheduling.",
+            "fields": [
+              { "column_name": "Campaign ID", "description": "CM360 campaign ID.", "required": true, "data_type": "string" },
+              { "column_name": "Ad ID", "description": "Leave blank for new ads.", "required": false, "data_type": "string" },
+              { "column_name": "Ad Name", "description": "Unique name for this ad.", "required": true, "data_type": "string", "example": "Acme_Brand_Q3_728x90_SummerOffer_v1" },
+              { "column_name": "Ad Type", "description": "Type of ad unit.", "required": true, "data_type": "enum", "valid_values": ["AD_SERVING_STANDARD_AD", "AD_SERVING_DEFAULT_AD", "AD_SERVING_CLICK_TRACKER", "AD_SERVING_TRACKING"] },
+              { "column_name": "Placement ID", "description": "ID of the placement this ad is associated with.", "required": true, "data_type": "string" },
+              { "column_name": "Creative ID (required)", "description": "ID of the creative to serve in this ad.", "required": true, "data_type": "string" },
+              { "column_name": "Start Date", "description": "Ad start date.", "required": true, "data_type": "date", "example": "7/1/2026" },
+              { "column_name": "End Date", "description": "Ad end date.", "required": true, "data_type": "date", "example": "9/30/2026" },
+              { "column_name": "Ad Status", "description": "Active or inactive.", "required": true, "data_type": "enum", "valid_values": ["AD_STATUS_ACTIVE", "AD_STATUS_INACTIVE", "AD_STATUS_ARCHIVED"] },
+              { "column_name": "Click-Through URL", "description": "Landing page URL for this ad (overrides placement default).", "required": false, "data_type": "string", "example": "https://www.yoursite.com/summer-sale" },
+              { "column_name": "Primary Click-Through URL", "description": "Primary click-through URL with click tracker.", "required": false, "data_type": "string" },
+              { "column_name": "Impression Ratio", "description": "Weighting for ad rotation within a placement (1-10).", "required": false, "data_type": "number", "example": "1" },
+              { "column_name": "Rotation Type", "description": "How ads are rotated within the placement.", "required": false, "data_type": "enum", "valid_values": ["ROTATION_TYPE_SEQUENTIAL", "ROTATION_TYPE_RANDOM", "ROTATION_TYPE_CUSTOM", "ROTATION_TYPE_SEQUENTIAL"] },
+              { "column_name": "Size", "description": "Creative dimensions — must match placement dimension.", "required": true, "data_type": "string", "example": "728x90" }
+            ]
+          },
+          {
+            "entity_type": "creative",
+            "filename": "CM360_Trafficking_Sheet.xlsx — Creative tab",
+            "description": "Creative assets (display banners, video, rich media) uploaded to CM360. Creatives are then associated with ads.",
+            "fields": [
+              { "column_name": "Campaign ID", "description": "CM360 campaign ID.", "required": true, "data_type": "string" },
+              { "column_name": "Creative ID", "description": "Leave blank for new creatives.", "required": false, "data_type": "string" },
+              { "column_name": "Creative Name", "description": "Unique creative name.", "required": true, "data_type": "string", "example": "Acme_Brand_SummerSale_728x90_v1" },
+              { "column_name": "Creative Type", "description": "Type of creative asset.", "required": true, "data_type": "enum", "valid_values": ["CREATIVE_TYPE_DISPLAY", "CREATIVE_TYPE_DISPLAY_REDIRECT", "CREATIVE_TYPE_HTML5_BANNER", "CREATIVE_TYPE_VIDEO", "CREATIVE_TYPE_RICH_MEDIA_DISPLAY_BANNER", "CREATIVE_TYPE_VPAID_LINEAR_VIDEO"] },
+              { "column_name": "Size", "description": "Creative dimensions.", "required": true, "data_type": "string", "example": "728x90" },
+              { "column_name": "Creative Status", "description": "Serving status.", "required": true, "data_type": "enum", "valid_values": ["CREATIVE_STATUS_ACTIVE", "CREATIVE_STATUS_INACTIVE", "CREATIVE_STATUS_ARCHIVED"] },
+              { "column_name": "Click-Through URL", "description": "Default landing page for this creative.", "required": false, "data_type": "string", "example": "https://www.yoursite.com" },
+              { "column_name": "Asset File Name", "description": "Asset file name as uploaded to CM360 (for display/HTML5 creatives).", "required": false, "data_type": "string", "example": "acme_summer_728x90_v1.html" }
+            ]
+          }
+        ],
+        "org_defaults": {
+          "placement": {
+            "naming_convention": "{brand}_{publisher}_{size}_{quarter}_{year} e.g. acme_nyt_728x90_q3_2026",
+            "field_defaults": {
+              "Placement Status": "PLACEMENT_STATUS_ACTIVE",
+              "Rate Type": "CPM",
+              "Compatibility": "DISPLAY"
+            },
+            "notes": "Download the blank trafficking sheet template from CM360 before populating. The Floodlight Activity column must match an existing floodlight activity in your CM360 account exactly. Always double-check Campaign ID — wrong campaign ID is the most common trafficking error."
+          },
+          "ad": {
+            "naming_convention": "{brand}_{campaign_theme}_{size}_{creative_version} e.g. acme_summersale_728x90_v1",
+            "field_defaults": {
+              "Ad Type": "AD_SERVING_STANDARD_AD",
+              "Ad Status": "AD_STATUS_ACTIVE",
+              "Rotation Type": "ROTATION_TYPE_RANDOM",
+              "Impression Ratio": "1"
+            },
+            "notes": "Ad name must include creative version for easy A/B identification. Start date must be >= placement start date. End date must be <= placement end date."
+          },
+          "creative": {
+            "naming_convention": "{brand}_{campaign}_{size}_{version} e.g. acme_brand_q3_728x90_v1",
+            "field_defaults": {
+              "Creative Status": "CREATIVE_STATUS_ACTIVE"
+            },
+            "notes": "Upload creative assets to CM360 Studio or directly via the CM360 UI before running the trafficking sheet. Creative IDs from the upload are used to associate with ads."
+          }
+        }
+      }
+    }
+  }
+}

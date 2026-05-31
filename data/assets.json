@@ -1,0 +1,153 @@
+{
+  "asset_library": {
+    "dam_system": "Bynder",
+    "dam_url": "https://acmecorp.bynder.com",
+    "access_instructions": "Request access via IT helpdesk ticket. Login with SSO. Navigate to Collections > Paid Media for campaign-specific assets.",
+    "brand_guidelines_url": "https://acmecorp.bynder.com/brand-guidelines",
+    "copy_guidelines_url": "https://acmecorp.bynder.com/copy-guidelines",
+    "notes": "All final assets must be uploaded to Bynder before campaign launch. Work-in-progress assets live in Google Drive (see team folder). Asset naming convention must be followed for all platform uploads.",
+    "categories": [
+      {
+        "id": "cat_social_static",
+        "name": "Social Static Images",
+        "type": "image",
+        "location_url": "https://acmecorp.bynder.com/collections/paid-social-static",
+        "naming_convention": "{brand}_{campaign}_{platform}_{size}_{version} e.g. acme_q2brand_meta_1080x1080_v1",
+        "specs": [
+          {
+            "platform": "meta",
+            "format": "JPG or PNG",
+            "dimensions": "1080x1080 (square), 1200x628 (landscape), 1080x1920 (story)",
+            "max_file_size": "30MB",
+            "aspect_ratio": "1:1, 1.91:1, 9:16",
+            "notes": "Text overlay must be <20% of image area. Use PNG for graphics with text."
+          },
+          {
+            "platform": "linkedin",
+            "format": "JPG or PNG",
+            "dimensions": "1200x627 (landscape), 1200x1200 (square)",
+            "max_file_size": "5MB",
+            "aspect_ratio": "1.91:1, 1:1"
+          },
+          {
+            "platform": "tiktok",
+            "format": "JPG or PNG",
+            "dimensions": "720x1280 (vertical)",
+            "max_file_size": "500KB",
+            "aspect_ratio": "9:16"
+          },
+          {
+            "platform": "google_ads",
+            "format": "JPG, PNG, or GIF",
+            "dimensions": "300x250, 728x90, 160x600, 320x50, 1200x628",
+            "max_file_size": "150KB (display), 5MB (responsive)",
+            "notes": "Responsive display ads use up to 15 images; 1200x1200 and 1200x628 required."
+          }
+        ]
+      },
+      {
+        "id": "cat_video",
+        "name": "Video Ads",
+        "type": "video",
+        "location_url": "https://acmecorp.bynder.com/collections/paid-video",
+        "naming_convention": "{brand}_{campaign}_{duration}s_{platform}_{aspect}_{version} e.g. acme_q2brand_15s_youtube_16x9_v2",
+        "specs": [
+          {
+            "platform": "youtube",
+            "format": "MP4 (H.264)",
+            "dimensions": "1920x1080 (16:9) or 1080x1920 (9:16 for Shorts)",
+            "max_file_size": "256GB",
+            "aspect_ratio": "16:9, 9:16",
+            "duration_max": "No limit (skippable TrueView). 15-20s non-skippable. 60s Shorts.",
+            "notes": "Always deliver 6s bumper, 15s, and 30s cuts. First 5s must hook before skip button."
+          },
+          {
+            "platform": "meta",
+            "format": "MP4 or MOV",
+            "dimensions": "1080x1080 (square), 1080x1920 (vertical), 1920x1080 (landscape)",
+            "max_file_size": "4GB",
+            "aspect_ratio": "1:1, 9:16, 16:9",
+            "duration_max": "240 minutes (feed). 60s (Reels). 15s (Stories).",
+            "notes": "First 3s critical for thumb-stop. Include captions — 85% watch without sound."
+          },
+          {
+            "platform": "tiktok",
+            "format": "MP4, MOV, or AVI",
+            "dimensions": "1080x1920",
+            "max_file_size": "500MB",
+            "aspect_ratio": "9:16",
+            "duration_max": "60s (recommended 15-30s for best performance)",
+            "notes": "Must feel native/organic. Avoid stock footage. Creator-style UGC performs best."
+          },
+          {
+            "platform": "dv360",
+            "format": "MP4 (H.264)",
+            "dimensions": "1920x1080 (16:9), 1280x720 acceptable",
+            "max_file_size": "1GB",
+            "aspect_ratio": "16:9",
+            "duration_max": "Varies by placement; 15s and 30s standard"
+          },
+          {
+            "platform": "linkedin",
+            "format": "MP4",
+            "dimensions": "1920x1080 (landscape), 1080x1080 (square), 1080x1920 (vertical)",
+            "max_file_size": "200MB",
+            "duration_max": "30 minutes (3-15s recommended)"
+          }
+        ]
+      },
+      {
+        "id": "cat_display_html5",
+        "name": "Display / HTML5 Banners",
+        "type": "html5",
+        "location_url": "https://acmecorp.bynder.com/collections/display-banners",
+        "naming_convention": "{brand}_{campaign}_{size}_{version} e.g. acme_q2brand_300x250_v1",
+        "specs": [
+          {
+            "platform": "dv360",
+            "format": "HTML5 (zip), GIF, or MP4",
+            "dimensions": "300x250, 728x90, 160x600, 300x600, 970x250, 320x50",
+            "max_file_size": "150KB (initial load), 2.2MB (total)",
+            "notes": "Built in Google Web Designer or Celtra. Must include click-through macro: %%CLICK_URL_UNESC%%"
+          },
+          {
+            "platform": "google_ads",
+            "format": "HTML5 (zip) or static",
+            "dimensions": "300x250, 728x90, 160x600, 300x600, 320x50, 320x100",
+            "max_file_size": "150KB"
+          }
+        ]
+      },
+      {
+        "id": "cat_copy",
+        "name": "Ad Copy Library",
+        "type": "copy",
+        "location_url": "https://docs.google.com/spreadsheets/d/ACME_COPY_LIBRARY",
+        "naming_convention": "Maintained in Google Sheet. Tabs by platform and campaign.",
+        "notes": "All copy must be reviewed by brand team before use. Character limits enforced per platform. Copy variants should be tagged with funnel stage (upper/mid/lower) and creative theme.",
+        "specs": [
+          {
+            "platform": "google_ads",
+            "format": "Text",
+            "notes": "RSA: 15 headlines (30 chars each), 4 descriptions (90 chars each). Performance Max: same plus long headline (90 chars). No punctuation at end of headlines."
+          },
+          {
+            "platform": "meta",
+            "format": "Text",
+            "notes": "Primary text: 125 chars (truncated after). Headline: 40 chars. Description: 30 chars. Supply 5+ copy variants per ad set for DCO testing."
+          },
+          {
+            "platform": "linkedin",
+            "format": "Text",
+            "notes": "Intro text: 150 chars (truncated). Headline: 200 chars. Description: 300 chars."
+          },
+          {
+            "platform": "tiktok",
+            "format": "Text",
+            "notes": "Ad name: 12-80 chars. Caption in video itself is primary messaging. Keep on-screen text minimal."
+          }
+        ]
+      }
+    ]
+  }
+}

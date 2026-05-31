@@ -1,0 +1,457 @@
+{
+  "testing_program": {
+    "methodology": {
+      "confidence_threshold": 95,
+      "require_stat_sig": true,
+      "minimum_sample_size": 1000,
+      "minimum_test_duration_days": 14,
+      "minimum_detectable_effect_pct": 10,
+      "winner_criteria": "Primary metric must show ≥10% lift at 95% confidence. Test must run minimum 14 days to account for day-of-week effects. If stat sig not achieved by end date, test is called 'inconclusive' — no winner declared, prior best practice retained.",
+      "holdout_group": false,
+      "notes": "For platform-native A/B tests (Meta, Google), use the platform's built-in stat sig calculator. For cross-platform or custom tests, use our internal Stats Calculator in Google Sheets (see testing tool list). Tests must be documented in this file before launch — no undocumented tests allowed."
+    },
+    "tools": [
+      {
+        "id": "tool_meta_ab",
+        "name": "Meta A/B Testing (native)",
+        "type": "platform_native",
+        "platform": "meta",
+        "url": "https://www.facebook.com/business/help/1738164643098669",
+        "used_for": [
+          "Creative A/B tests within Meta campaigns",
+          "Audience split tests",
+          "Placement tests",
+          "Bid strategy comparisons"
+        ],
+        "notes": "Preferred for Meta tests. Uses Meta's own stat sig engine. Minimum audience split: 50/50. Cannot run overlapping tests on same audience."
+      },
+      {
+        "id": "tool_gads_experiment",
+        "name": "Google Ads Campaign Experiments",
+        "type": "platform_native",
+        "platform": "google_ads",
+        "url": "https://support.google.com/google-ads/answer/6195551",
+        "used_for": [
+          "Bid strategy experiments (tCPA vs tROAS)",
+          "Smart Bidding vs Manual CPC",
+          "Match type tests",
+          "Ad rotation tests"
+        ],
+        "notes": "Set up as Draft > Experiment workflow. Traffic split configured at campaign level. Stat sig shown natively in Experiments tab."
+      },
+      {
+        "id": "tool_stats_calculator",
+        "name": "Internal Stats Significance Calculator",
+        "type": "internal",
+        "url": "https://docs.google.com/spreadsheets/d/ACME_STATS_CALCULATOR",
+        "used_for": [
+          "Cross-platform test analysis",
+          "Manual stat sig calculation for platforms without native tools",
+          "Sample size planning before test launch"
+        ],
+        "notes": "Two-proportion z-test. Enter baseline conversion rate, expected lift, and desired confidence level to get required sample size. Owned by Tom Patel."
+      },
+      {
+        "id": "tool_vwo",
+        "name": "VWO (Visual Website Optimizer)",
+        "type": "third_party",
+        "url": "https://app.vwo.com",
+        "used_for": [
+          "Landing page A/B tests",
+          "Post-click experience tests",
+          "Multivariate tests on landing pages"
+        ],
+        "notes": "Used for landing page tests only — not ad creative. Connected to GA4 for conversion tracking. Contact Priya Nair for access."
+      }
+    ],
+    "tests": [
+      {
+        "id": "test_meta_ugc_vs_brand",
+        "name": "Meta: UGC vs Brand Creative",
+        "hypothesis": "UGC-style creator content will outperform polished brand creative on Meta prospecting because it feels more native to the feed and drives higher thumb-stop rates, resulting in lower CPA.",
+        "status": "completed",
+        "type": "creative",
+        "campaign_id": "camp_meta_prosp_q2",
+        "team_id": "team_performance",
+        "platform": "meta",
+        "start_date": "2026-04-07",
+        "end_date": "2026-04-28",
+        "variants": [
+          {
+            "id": "v_brand",
+            "name": "Brand Creative (Control)",
+            "description": "Polished brand video with logo, product shots, and branded end card. 30s.",
+            "is_control": true
+          },
+          {
+            "id": "v_ugc",
+            "name": "UGC Creator Video",
+            "description": "Authentic-style creator talking-head video filmed on iPhone. No logo until final 3s.",
+            "is_control": false
+          }
+        ],
+        "results": {
+          "winner_variant_id": "v_ugc",
+          "stat_sig_achieved": true,
+          "confidence_level": 97,
+          "primary_metric": "CPA",
+          "primary_metric_lift_pct": -23,
+          "sample_size": 8420,
+          "conclusion": "UGC creative drove 23% lower CPA at 97% confidence. CTR was also 41% higher. Brand creative had higher brand recall in post-view survey but lower direct response performance.",
+          "action_taken": "Scaled UGC approach — now producing 2 new UGC variants per month. Brand creative retained for awareness campaigns only."
+        },
+        "tags": ["creative", "ugc", "meta", "prospecting"]
+      },
+      {
+        "id": "test_gads_troas_vs_tcpa",
+        "name": "Google Ads: tROAS vs tCPA Bidding",
+        "hypothesis": "Switching Search campaigns from tCPA to tROAS bidding will improve revenue efficiency by allowing the algorithm to prioritize higher-value conversions, improving ROAS without significantly increasing CPA.",
+        "status": "completed",
+        "type": "bidding",
+        "campaign_id": "camp_perf_search_always_on",
+        "team_id": "team_performance",
+        "platform": "google_ads",
+        "start_date": "2026-03-03",
+        "end_date": "2026-03-31",
+        "variants": [
+          {
+            "id": "v_tcpa",
+            "name": "Target CPA (Control)",
+            "description": "Existing tCPA strategy with CPA target of $8.",
+            "is_control": true
+          },
+          {
+            "id": "v_troas",
+            "name": "Target ROAS",
+            "description": "tROAS strategy set to 500% (5.0x) ROAS target.",
+            "is_control": false
+          }
+        ],
+        "results": {
+          "winner_variant_id": "v_troas",
+          "stat_sig_achieved": true,
+          "confidence_level": 99,
+          "primary_metric": "ROAS",
+          "primary_metric_lift_pct": 31,
+          "sample_size": 12800,
+          "conclusion": "tROAS improved ROAS by 31% (4.5x → 5.9x) with only 8% CPA increase ($5.90 → $6.38). Net revenue impact strongly positive. tROAS drives the algorithm toward higher-value conversion events.",
+          "action_taken": "Switched all Search campaigns to tROAS. CPA campaigns deprecated except for lead gen campaigns where revenue data unavailable."
+        },
+        "tags": ["bidding", "search", "google-ads", "smart-bidding"]
+      },
+      {
+        "id": "test_meta_lal_1pct_vs_5pct",
+        "name": "Meta: LAL 1% vs 5% Expansion",
+        "hypothesis": "1% LAL audiences (tighter, more similar to seed) will have lower CPA than 5% LAL due to better audience quality, even though reach is smaller.",
+        "status": "completed",
+        "type": "audience",
+        "campaign_id": "camp_meta_prosp_q2",
+        "team_id": "team_performance",
+        "platform": "meta",
+        "start_date": "2026-04-14",
+        "end_date": "2026-05-05",
+        "variants": [
+          {
+            "id": "v_lal1",
+            "name": "LAL 1% (Control)",
+            "description": "1% lookalike of past 180-day purchasers.",
+            "is_control": true
+          },
+          {
+            "id": "v_lal5",
+            "name": "LAL 5%",
+            "description": "5% lookalike of past 180-day purchasers.",
+            "is_control": false
+          }
+        ],
+        "results": {
+          "winner_variant_id": "v_lal1",
+          "stat_sig_achieved": true,
+          "confidence_level": 95,
+          "primary_metric": "CPA",
+          "primary_metric_lift_pct": -18,
+          "sample_size": 6200,
+          "conclusion": "LAL 1% delivered 18% lower CPA. However, LAL 5% delivered 4x more conversions in absolute terms. For volume-constrained campaigns, LAL 5% may be necessary despite efficiency trade-off.",
+          "action_taken": "LAL 1% used as primary for ROAS-optimized campaigns. LAL 5% added as secondary ad set when scaling spend. Broad targeting added as third ad set per CBO setup."
+        },
+        "tags": ["audience", "lookalike", "meta"]
+      },
+      {
+        "id": "test_lp_offer_headline",
+        "name": "Landing Page: Offer vs Feature Headline",
+        "hypothesis": "A landing page headline focused on the discount offer ('Save 30% Today') will convert at a higher rate than a feature-focused headline ('Built for Modern Homes') by reducing friction for price-sensitive shoppers.",
+        "status": "completed",
+        "type": "landing_page",
+        "team_id": "team_performance",
+        "start_date": "2026-02-10",
+        "end_date": "2026-03-10",
+        "variants": [
+          {
+            "id": "v_feature_headline",
+            "name": "Feature Headline (Control)",
+            "description": "Headline: 'Built for Modern Homes'. Subhead: 'Free shipping on orders over $50.'",
+            "is_control": true
+          },
+          {
+            "id": "v_offer_headline",
+            "name": "Offer Headline",
+            "description": "Headline: 'Save 30% Today Only'. Subhead: 'Plus free shipping on every order.'",
+            "is_control": false
+          }
+        ],
+        "results": {
+          "winner_variant_id": "v_offer_headline",
+          "stat_sig_achieved": true,
+          "confidence_level": 96,
+          "primary_metric": "landing_page_conversion_rate",
+          "primary_metric_lift_pct": 22,
+          "sample_size": 4800,
+          "conclusion": "Offer headline drove 22% higher LP conversion rate. Average order value dropped slightly (-4%) as more price-sensitive buyers converted. Net revenue per session increased 17%.",
+          "action_taken": "Offer headline deployed as default. Seasonal offer messaging updated monthly. Feature headline retained for brand-safe placements."
+        },
+        "tags": ["landing-page", "cro", "headline", "offer"]
+      },
+      {
+        "id": "test_linkedin_doc_vs_image",
+        "name": "LinkedIn: Document Ad vs Single Image",
+        "hypothesis": "LinkedIn Document Ads (carousel PDFs) will drive higher engagement and lower CPL than single image ads for B2B whitepaper downloads, due to native content preview increasing intent signal.",
+        "status": "active",
+        "type": "format",
+        "campaign_id": "camp_linkedin_b2b_q2",
+        "team_id": "team_social",
+        "platform": "linkedin",
+        "start_date": "2026-05-12",
+        "variants": [
+          {
+            "id": "v_image_ad",
+            "name": "Single Image Ad (Control)",
+            "description": "Static image ad with whitepaper cover and 'Download Now' CTA.",
+            "is_control": true
+          },
+          {
+            "id": "v_doc_ad",
+            "name": "Document Ad",
+            "description": "LinkedIn Document Ad showing first 3 pages of whitepaper as inline preview before gating.",
+            "is_control": false
+          }
+        ],
+        "tags": ["format", "linkedin", "b2b", "lead-gen"]
+      },
+      {
+        "id": "test_tiktok_creator_vs_brand",
+        "name": "TikTok: Creator Spark Ads vs Brand Video",
+        "hypothesis": "Spark Ads (boosting organic creator posts) will outperform brand-produced video on TikTok for awareness metrics because they are inherently native and carry social proof.",
+        "status": "planned",
+        "type": "creative",
+        "team_id": "team_social",
+        "platform": "tiktok",
+        "variants": [
+          {
+            "id": "v_brand_video",
+            "name": "Brand-Produced Video (Control)",
+            "description": "Brand studio-produced 15s vertical video.",
+            "is_control": true
+          },
+          {
+            "id": "v_spark_ad",
+            "name": "Creator Spark Ad",
+            "description": "Boosting organic post from @creator_handle with 85K followers who organically posted about our product.",
+            "is_control": false
+          }
+        ],
+        "notes": "Requires creator agreement for Spark Ads authorization. Aisha Williams to coordinate with creator partnerships.",
+        "tags": ["creative", "tiktok", "spark-ads", "creator"]
+      },
+      {
+        "id": "test_dsp_dv360_vs_ttd",
+        "name": "DSP Evaluation: DV360 vs. The Trade Desk",
+        "hypothesis": "The Trade Desk's cross-device graph and UID2.0 identity solution will deliver better prospecting efficiency than DV360 for upper-funnel display, because its open identity infrastructure provides broader cookie-less reach and superior frequency management.",
+        "status": "completed",
+        "type": "dsp",
+        "team_id": "team_programmatic",
+        "start_date": "2026-01-06",
+        "end_date": "2026-03-28",
+        "vendor_context": {
+          "subject": "DV360 vs. The Trade Desk",
+          "incumbent": "DV360",
+          "challenger": "The Trade Desk",
+          "budget_tested": 120000,
+          "contract_value": 0,
+          "evaluation_criteria": [
+            "Prospecting CPA",
+            "Viewable impression rate",
+            "Frequency control across devices",
+            "Audience reach and match rates",
+            "Brand safety incident rate",
+            "Reporting transparency and granularity"
+          ],
+          "stakeholders": ["Tom Patel (Head of Programmatic)", "Finance (contract review)", "Legal (DPA review)"],
+          "recommendation": "Retain DV360 as primary DSP. DV360 delivered 11% lower prospecting CPA and superior integration with CM360 floodlights. The Trade Desk had better frequency management and UID2.0 reach advantages will likely narrow DV360's lead as cookies deprecate — re-evaluate in 12 months."
+        },
+        "variants": [
+          {
+            "id": "v_dv360",
+            "name": "DV360 (Incumbent)",
+            "description": "DV360 programmatic display using existing Google audience signals, DV360 Optimized Targeting, and CM360 floodlight conversion tracking. $60K spend over 12 weeks.",
+            "is_control": true
+          },
+          {
+            "id": "v_ttd",
+            "name": "The Trade Desk",
+            "description": "TTD programmatic display using UID2.0, TTD AI bidding (Koa), and Unified ID 2.0 cross-device reach. Same creative, same targeting parameters where comparable. $60K spend over 12 weeks.",
+            "is_control": false
+          }
+        ],
+        "results": {
+          "winner_variant_id": "v_dv360",
+          "stat_sig_achieved": true,
+          "confidence_level": 95,
+          "primary_metric": "prospecting_CPA",
+          "primary_metric_lift_pct": -11,
+          "sample_size": 18400,
+          "conclusion": "DV360 delivered 11% lower CPA ($34.20 vs. $38.50). Viewability was comparable (68% vs. 71%). TTD showed 22% better frequency capping cross-device. Brand safety incidents: DV360 0.3%, TTD 0.2%. DV360 reporting depth and floodlight integration rated superior by the team.",
+          "action_taken": "DV360 retained as primary DSP. TTD access maintained for future re-evaluation as cookie deprecation progresses. UID2.0 integration flagged as a 2027 initiative."
+        },
+        "tags": ["dsp", "programmatic", "dv360", "thetradedesk", "vendor-evaluation"]
+      },
+      {
+        "id": "test_agency_social_retainer",
+        "name": "Agency Evaluation: Incumbent Social Agency vs. Challenger",
+        "hypothesis": "A boutique social-specialist agency with dedicated creative strategists will outperform the current full-service agency on paid social, because channel specialization drives better creative iteration cycles and faster hypothesis-to-launch timelines.",
+        "status": "completed",
+        "type": "agency",
+        "team_id": "team_social",
+        "start_date": "2025-10-01",
+        "end_date": "2025-12-31",
+        "vendor_context": {
+          "subject": "Full-Service Agency (incumbent) vs. Boutique Social Agency (challenger)",
+          "incumbent": "Spark & Co. (full-service, $180K/yr retainer)",
+          "challenger": "Social Natives Agency (boutique social specialist, $120K/yr proposal)",
+          "contract_value": 180000,
+          "evaluation_criteria": [
+            "Paid social CPA improvement vs. prior quarter",
+            "Creative turnaround time (brief to live)",
+            "Number of creative variants produced per month",
+            "Responsiveness and communication quality",
+            "Strategic depth (test-and-learn contributions)",
+            "Platform expertise (Meta, TikTok, LinkedIn)"
+          ],
+          "stakeholders": ["VP Marketing", "Head of Social", "Procurement"],
+          "recommendation": "Transition to Social Natives Agency. Delivered 18% better CPA, produced 3x more creative variants per month, and introduced a structured test-and-learn process the team lacked. $60K annual savings. Transition plan: 60-day handover starting February 2026."
+        },
+        "variants": [
+          {
+            "id": "v_incumbent_agency",
+            "name": "Spark & Co. (Incumbent)",
+            "description": "Q4 2025 managed by existing full-service agency with dedicated social team of 2 FTE. Campaigns: Meta prospecting, Meta retargeting, LinkedIn B2B.",
+            "is_control": true
+          },
+          {
+            "id": "v_challenger_agency",
+            "name": "Social Natives Agency (Challenger)",
+            "description": "Q4 2025 shadowing period: Social Natives provided parallel campaign recommendations, creative strategy, and a 30-day live test on one Meta campaign with $20K budget.",
+            "is_control": false
+          }
+        ],
+        "results": {
+          "winner_variant_id": "v_challenger_agency",
+          "stat_sig_achieved": false,
+          "confidence_level": null,
+          "primary_metric": "paid_social_CPA",
+          "primary_metric_lift_pct": -18,
+          "conclusion": "Social Natives' 30-day live Meta test delivered 18% lower CPA. Creative output: 12 variants vs. 4 from incumbent in same period. Turnaround time: 4 days vs. 11 days. Stat sig not formally achievable (different budgets, different time periods) — decision made on holistic evaluation scorecard.",
+          "action_taken": "Contract awarded to Social Natives Agency. 60-day transition with parallel running began February 2026. Full handover complete March 1, 2026."
+        },
+        "tags": ["agency", "social", "vendor-evaluation", "meta", "linkedin"]
+      },
+      {
+        "id": "test_adnetwork_taboola_vs_programmatic",
+        "name": "Ad Network Evaluation: Taboola Native vs. Programmatic Display",
+        "hypothesis": "Taboola native advertising will reach incremental audiences not accessible via DV360 programmatic display, producing a lower CPM and comparable CPA for upper-funnel awareness content.",
+        "status": "completed",
+        "type": "ad_network",
+        "team_id": "team_programmatic",
+        "start_date": "2026-02-03",
+        "end_date": "2026-03-14",
+        "vendor_context": {
+          "subject": "Taboola Native Advertising vs. DV360 Programmatic Display",
+          "incumbent": "DV360 Programmatic Display",
+          "challenger": "Taboola",
+          "budget_tested": 40000,
+          "evaluation_criteria": [
+            "CPM",
+            "CPA (post-view and post-click combined)",
+            "Audience overlap with existing DV360 reach",
+            "Brand safety controls",
+            "Minimum spend requirement and buying flexibility"
+          ],
+          "stakeholders": ["Tom Patel", "CMO"],
+          "recommendation": "Do not add Taboola as a standing channel. CPM was 34% lower but CPA was 61% higher and audience overlap with DV360 was only 12% (confirming incremental reach), but the quality of incremental audience was not sufficient to justify the CPA premium. Re-evaluate if content/editorial strategy changes."
+        },
+        "variants": [
+          {
+            "id": "v_dv360_display",
+            "name": "DV360 Programmatic Display (Control)",
+            "description": "DV360 open auction display with contextual and audience targeting. $20K. Same awareness creative used in both arms.",
+            "is_control": true
+          },
+          {
+            "id": "v_taboola",
+            "name": "Taboola Native",
+            "description": "Taboola Attentive Reach campaign with interest and contextual targeting on Taboola publisher network. $20K. Same awareness creative adapted to native format (thumbnail + headline).",
+            "is_control": false
+          }
+        ],
+        "results": {
+          "winner_variant_id": "v_dv360_display",
+          "stat_sig_achieved": true,
+          "confidence_level": 97,
+          "primary_metric": "CPA",
+          "primary_metric_lift_pct": 61,
+          "conclusion": "Taboola delivered 34% lower CPM ($3.20 vs. $4.85) but 61% higher CPA ($55.20 vs. $34.30). Audience overlap analysis via CM360 showed only 12% overlap — Taboola does reach incremental users but conversion quality was lower. CTR on Taboola 3x higher (0.9% vs. 0.3%) but post-click conversion rate 4x lower.",
+          "action_taken": "Taboola not added to standing media plan. Learnings documented for future content-led campaign consideration."
+        },
+        "tags": ["ad-network", "taboola", "native", "programmatic", "vendor-evaluation"]
+      },
+      {
+        "id": "test_mmm_vendor_northstar_vs_analytic_partners",
+        "name": "MMM Vendor Evaluation: Northstar vs. Analytic Partners",
+        "hypothesis": "Analytic Partners' on-demand MMM platform will provide more actionable budget optimization recommendations with faster turnaround than our current quarterly Northstar MMM, enabling more responsive budget reallocation across channels.",
+        "status": "active",
+        "type": "tool",
+        "team_id": "team_programmatic",
+        "start_date": "2026-04-01",
+        "vendor_context": {
+          "subject": "Northstar MMM (incumbent) vs. Analytic Partners ROI Genome (challenger)",
+          "incumbent": "Northstar (quarterly model runs, $95K/yr)",
+          "challenger": "Analytic Partners ROI Genome (continuous model, $140K/yr)",
+          "contract_value": 95000,
+          "evaluation_criteria": [
+            "Model accuracy (back-test vs. actual results)",
+            "Turnaround time for budget scenario analysis",
+            "Granularity (channel, tactic, audience level)",
+            "Integration with media buying platforms",
+            "Quality of optimization recommendations",
+            "Self-serve capability for the media team"
+          ],
+          "stakeholders": ["CMO", "Head of Analytics", "Finance"]
+        },
+        "variants": [
+          {
+            "id": "v_northstar",
+            "name": "Northstar MMM (Incumbent)",
+            "description": "Quarterly model runs with 6-week delivery. Covers all paid channels. Budget scenario modeling available via analyst request. Current contract runs through December 2026.",
+            "is_control": true
+          },
+          {
+            "id": "v_analytic_partners",
+            "name": "Analytic Partners ROI Genome",
+            "description": "Continuous model with weekly data refresh. Self-serve scenario planning UI. Pilot access granted April-June 2026 on 6-month evaluation.",
+            "is_control": false
+          }
+        ],
+        "tags": ["tool", "mmm", "measurement", "vendor-evaluation"]
+      }
+    ]
+  }
+}
