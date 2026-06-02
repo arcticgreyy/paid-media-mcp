@@ -578,6 +578,239 @@ export class BigQueryAdapter extends FileAdapter {
     } catch { return null; }
   }
 
+  // ── Reporting Views (06_reporting.sql) ───────────────────────────────────
+  // These methods query the pre-built reporting views. They are NOT yet part of
+  // the PaidMediaAdapter interface — the interface will be extended in Task 31.
+  // All views reference the latest completed attribution run automatically.
+
+  /**
+   * Campaign performance: spend + MTA attribution in one row per campaign.
+   * Queries v_campaign_performance (see 06_reporting.sql).
+   */
+  async getCampaignPerformanceReport(filters: {
+    platform?: string;
+    team_id?: string;
+    funnel_stage?: string;
+    status?: string;
+    date_from?: string;
+    date_to?: string;
+  } = {}): Promise<object[]> {
+    const bq = await this.client();
+    const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
+    const conditions: string[] = [];
+    if (filters.platform)     conditions.push(`platform = '${filters.platform}'`);
+    if (filters.team_id)      conditions.push(`team_id = '${filters.team_id}'`);
+    if (filters.funnel_stage) conditions.push(`funnel_stage = '${filters.funnel_stage}'`);
+    if (filters.status)       conditions.push(`campaign_status = '${filters.status}'`);
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    try {
+      const [rows] = await bq.query(`
+        SELECT *
+        FROM ${ds}.v_campaign_performance
+        ${where}
+        ORDER BY total_spend DESC
+        LIMIT 500
+      `);
+      return rows as object[];
+    } catch { return []; }
+  }
+
+  /**
+   * Pacing status for all active / paused campaigns that have started flying.
+   * Queries v_pacing_status (see 06_reporting.sql).
+   */
+  async getPacingReport(filters: {
+    platform?: string;
+    team_id?: string;
+    pacing_status?: "overpacing" | "underpacing" | "on_pace" | "no_budget_data";
+    funnel_stage?: string;
+  } = {}): Promise<object[]> {
+    const bq = await this.client();
+    const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
+    const conditions: string[] = [];
+    if (filters.platform)      conditions.push(`platform = '${filters.platform}'`);
+    if (filters.team_id)       conditions.push(`team_id = '${filters.team_id}'`);
+    if (filters.pacing_status) conditions.push(`pacing_status = '${filters.pacing_status}'`);
+    if (filters.funnel_stage)  conditions.push(`funnel_stage = '${filters.funnel_stage}'`);
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    try {
+      const [rows] = await bq.query(`
+        SELECT *
+        FROM ${ds}.v_pacing_status
+        ${where}
+        ORDER BY
+          CASE pacing_status
+            WHEN 'overpacing'   THEN 1
+            WHEN 'underpacing'  THEN 2
+            WHEN 'on_pace'      THEN 3
+            ELSE 4
+          END,
+          ABS(COALESCE(pacing_variance_amount, 0)) DESC
+        LIMIT 500
+      `);
+      return rows as object[];
+    } catch { return []; }
+  }
+
+  /**
+   * ROAS comparison: platform-reported vs MTA attributed vs margin ROI per channel.
+   * Queries v_roas_comparison (see 06_reporting.sql).
+   */
+  async getRoasComparison(filters: {
+    platform?: string;
+    channel?: string;
+    conversion_type?: string;
+  } = {}): Promise<object[]> {
+    const bq = await this.client();
+    const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
+    const conditions: string[] = [];
+    if (filters.platform)        conditions.push(`platform = '${filters.platform}'`);
+    if (filters.channel)         conditions.push(`channel = '${filters.channel}'`);
+    if (filters.conversion_type) conditions.push(`conversion_type = '${filters.conversion_type}'`);
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    try {
+      const [rows] = await bq.query(`
+        SELECT *
+        FROM ${ds}.v_roas_comparison
+        ${where}
+        ORDER BY total_spend DESC
+      `);
+      return rows as object[];
+    } catch { return []; }
+  }
+
+  /**
+   * Cross-channel efficiency: attributed CPA, ROAS, pipeline share, and
+   * spend vs pipeline gap per channel. Queries v_channel_efficiency.
+   */
+  async getChannelEfficiency(): Promise<object[]> {
+    const bq = await this.client();
+    const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
+    try {
+      const [rows] = await bq.query(`
+        SELECT *
+        FROM ${ds}.v_channel_efficiency
+        ORDER BY pipeline_share_pct DESC
+      `);
+      return rows as object[];
+    } catch { return []; }
+  }
+
+  /**
+   * Ad/creative performance with attribution.
+   * Queries v_ad_performance (see 06_reporting.sql).
+   */
+  async getAdPerformance(filters: {
+    campaign_id?: string;
+    platform?: string;
+    creative_format?: string;
+    min_spend?: number;
+  } = {}): Promise<object[]> {
+    const bq = await this.client();
+    const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
+    const conditions: string[] = [];
+    if (filters.campaign_id)     conditions.push(`campaign_id = '${filters.campaign_id}'`);
+    if (filters.platform)        conditions.push(`platform = '${filters.platform}'`);
+    if (filters.creative_format) conditions.push(`creative_format = '${filters.creative_format}'`);
+    if (filters.min_spend != null) conditions.push(`total_spend >= ${filters.min_spend}`);
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    try {
+      const [rows] = await bq.query(`
+        SELECT *
+        FROM ${ds}.v_ad_performance
+        ${where}
+        ORDER BY total_spend DESC
+        LIMIT 500
+      `);
+      return rows as object[];
+    } catch { return []; }
+  }
+
+  /**
+   * Keyword performance with spend, quality scores, and impression share.
+   * Queries v_keyword_performance (see 06_reporting.sql).
+   */
+  async getKeywordPerformance(filters: {
+    campaign_id?: string;
+    platform?: string;
+    min_spend?: number;
+    low_quality_score?: boolean;
+    lost_is_budget?: boolean;
+  } = {}): Promise<object[]> {
+    const bq = await this.client();
+    const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
+    const conditions: string[] = [];
+    if (filters.campaign_id)   conditions.push(`campaign_id = '${filters.campaign_id}'`);
+    if (filters.platform)      conditions.push(`platform = '${filters.platform}'`);
+    if (filters.min_spend != null) conditions.push(`total_spend >= ${filters.min_spend}`);
+    if (filters.low_quality_score) conditions.push(`quality_score <= 5`);
+    if (filters.lost_is_budget)    conditions.push(`avg_is_lost_budget > 0.1`);
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    try {
+      const [rows] = await bq.query(`
+        SELECT *
+        FROM ${ds}.v_keyword_performance
+        ${where}
+        ORDER BY total_spend DESC
+        LIMIT 1000
+      `);
+      return rows as object[];
+    } catch { return []; }
+  }
+
+  /**
+   * Daily performance trend for all campaigns.
+   * Queries v_daily_performance (see 06_reporting.sql).
+   */
+  async getDailyPerformance(filters: {
+    campaign_id?: string;
+    platform?: string;
+    team_id?: string;
+    date_from?: string;
+    date_to?: string;
+    group_by?: "day" | "week" | "month";
+  } = {}): Promise<object[]> {
+    const bq = await this.client();
+    const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
+    const conditions: string[] = [];
+    if (filters.campaign_id) conditions.push(`campaign_id = '${filters.campaign_id}'`);
+    if (filters.platform)    conditions.push(`platform = '${filters.platform}'`);
+    if (filters.team_id)     conditions.push(`team_id = '${filters.team_id}'`);
+    if (filters.date_from)   conditions.push(`date >= '${filters.date_from}'`);
+    if (filters.date_to)     conditions.push(`date <= '${filters.date_to}'`);
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
+    // Optional time aggregation
+    const groupByClause = filters.group_by === "week"  ? "GROUP BY week_start, platform, channel, team_id, brand" :
+                          filters.group_by === "month" ? "GROUP BY month_start, platform, channel, team_id, brand" :
+                          "";
+    const selectClause = filters.group_by
+      ? `
+        ${filters.group_by === "week" ? "week_start AS period" : "month_start AS period"},
+        platform, channel, team_id, brand,
+        SUM(spend) AS spend, SUM(impressions) AS impressions, SUM(clicks) AS clicks,
+        SUM(video_views) AS video_views, SUM(engagements) AS engagements,
+        SUM(platform_conversions) AS platform_conversions,
+        SUM(platform_conversion_value) AS platform_conversion_value,
+        SAFE_DIVIDE(SUM(clicks), SUM(impressions)) AS ctr,
+        SAFE_DIVIDE(SUM(spend), SUM(clicks)) AS cpc,
+        SAFE_DIVIDE(SUM(spend) * 1000, SUM(impressions)) AS cpm
+      `
+      : "*";
+
+    try {
+      const [rows] = await bq.query(`
+        SELECT ${selectClause}
+        FROM ${ds}.v_daily_performance
+        ${where}
+        ${groupByClause}
+        ORDER BY ${filters.group_by === "week" ? "week_start" : filters.group_by === "month" ? "month_start" : "date"} DESC
+        LIMIT 10000
+      `);
+      return rows as object[];
+    } catch { return []; }
+  }
+
   // ── Interactive Media Actions ─────────────────────────────────────────────
   // BigQuery adapter routes these to the Operator agent (via inherited FileAdapter logic)
   // which already has the correct platform API credentials.
