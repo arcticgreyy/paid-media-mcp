@@ -811,6 +811,156 @@ export class BigQueryAdapter extends FileAdapter {
     } catch { return []; }
   }
 
+  // ── Account-Based Analytics (07_account_analytics.sql) ───────────────────
+  // Methods for querying company profiles, sessions, engagement, and target
+  // account activity. Not yet on PaidMediaAdapter interface — formalized in Task 31.
+
+  /**
+   * Look up enriched firmographic profile for a company domain.
+   * Queries company_profiles table.
+   */
+  async getCompanyProfile(company_domain: string): Promise<object | null> {
+    const bq = await this.client();
+    const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
+    try {
+      const [rows] = await bq.query(`
+        SELECT *
+        FROM ${ds}.company_profiles
+        WHERE company_domain = '${company_domain}'
+          AND is_active = TRUE
+        LIMIT 1
+      `);
+      return rows.length ? rows[0] : null;
+    } catch { return null; }
+  }
+
+  /**
+   * Get the target account funnel view — ranked target accounts with
+   * engagement, CRM status, paid media exposure, and intent scores.
+   * Queries v_target_account_funnel.
+   */
+  async getTargetAccountFunnel(filters: {
+    account_tier?: "tier_1" | "tier_2" | "tier_3";
+    crm_pipeline_stage?: string;
+    intent_spiking?: boolean;
+    is_suppressed_tofu?: boolean;
+    min_sessions_30d?: number;
+    limit?: number;
+  } = {}): Promise<object[]> {
+    const bq = await this.client();
+    const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
+    const conditions: string[] = [];
+    if (filters.account_tier)       conditions.push(`account_tier = '${filters.account_tier}'`);
+    if (filters.crm_pipeline_stage) conditions.push(`crm_pipeline_stage = '${filters.crm_pipeline_stage}'`);
+    if (filters.intent_spiking != null) conditions.push(`intent_spiking = ${filters.intent_spiking}`);
+    if (filters.is_suppressed_tofu != null) conditions.push(`is_suppressed_tofu = ${filters.is_suppressed_tofu}`);
+    if (filters.min_sessions_30d != null) conditions.push(`sessions_30d >= ${filters.min_sessions_30d}`);
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    try {
+      const [rows] = await bq.query(`
+        SELECT *
+        FROM ${ds}.v_target_account_funnel
+        ${where}
+        ORDER BY funnel_priority_score DESC, account_tier_rank ASC
+        LIMIT ${filters.limit ?? 100}
+      `);
+      return rows as object[];
+    } catch { return []; }
+  }
+
+  /**
+   * Get de-anonymized sessions for a specific company.
+   * Queries company_sessions table.
+   */
+  async getCompanySessions(company_domain: string, lookback_days = 30): Promise<object[]> {
+    const bq = await this.client();
+    const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
+    try {
+      const [rows] = await bq.query(`
+        SELECT
+          session_id, session_date, session_start_at, session_duration_seconds,
+          page_count, channel_grouping, landing_page, utm_campaign,
+          visited_pricing, visited_demo, visited_contact, visited_docs,
+          has_paid_touchpoint, paid_touchpoint_platform, paid_touchpoint_campaign_id,
+          crm_pipeline_stage, is_target_account, resolution_method, resolution_confidence
+        FROM ${ds}.company_sessions
+        WHERE company_domain = '${company_domain}'
+          AND session_date >= DATE_SUB(CURRENT_DATE(), INTERVAL ${lookback_days} DAY)
+        ORDER BY session_date DESC
+        LIMIT 500
+      `);
+      return rows as object[];
+    } catch { return []; }
+  }
+
+  /**
+   * Get engagement summary for a company over a time period.
+   * Queries company_engagement table.
+   */
+  async getCompanyEngagement(company_domain: string, period_type = "rolling_30d"): Promise<object | null> {
+    const bq = await this.client();
+    const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
+    try {
+      const [rows] = await bq.query(`
+        SELECT *
+        FROM ${ds}.company_engagement
+        WHERE company_domain = '${company_domain}'
+          AND period_type = '${period_type}'
+        ORDER BY period_start DESC
+        LIMIT 1
+      `);
+      return rows.length ? rows[0] : null;
+    } catch { return null; }
+  }
+
+  /**
+   * Get dark funnel coverage: target accounts with no web presence.
+   * Queries v_dark_funnel_coverage.
+   */
+  async getDarkFunnelCoverage(filters: {
+    account_tier?: "tier_1" | "tier_2" | "tier_3";
+    web_presence_status?: "dark" | "lapsed" | "visible";
+    crm_pipeline_stage?: string;
+  } = {}): Promise<object[]> {
+    const bq = await this.client();
+    const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
+    const conditions: string[] = [];
+    if (filters.account_tier)        conditions.push(`account_tier = '${filters.account_tier}'`);
+    if (filters.web_presence_status) conditions.push(`web_presence_status = '${filters.web_presence_status}'`);
+    if (filters.crm_pipeline_stage)  conditions.push(`crm_pipeline_stage = '${filters.crm_pipeline_stage}'`);
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    try {
+      const [rows] = await bq.query(`
+        SELECT *
+        FROM ${ds}.v_dark_funnel_coverage
+        ${where}
+        ORDER BY tier_rank ASC, icp_score DESC
+        LIMIT 500
+      `);
+      return rows as object[];
+    } catch { return []; }
+  }
+
+  /**
+   * Get daily target account activity history for a specific company.
+   * Queries target_account_activity table.
+   */
+  async getTargetAccountActivity(company_domain: string, lookback_days = 30): Promise<object[]> {
+    const bq = await this.client();
+    const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
+    try {
+      const [rows] = await bq.query(`
+        SELECT *
+        FROM ${ds}.target_account_activity
+        WHERE company_domain = '${company_domain}'
+          AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL ${lookback_days} DAY)
+        ORDER BY date DESC
+        LIMIT ${lookback_days}
+      `);
+      return rows as object[];
+    } catch { return []; }
+  }
+
   // ── Interactive Media Actions ─────────────────────────────────────────────
   // BigQuery adapter routes these to the Operator agent (via inherited FileAdapter logic)
   // which already has the correct platform API credentials.
