@@ -162,4 +162,71 @@ export interface PaidMediaAdapter {
    * Returns the job ID or a "pending approval" message.
    */
   triggerAgentRun(agent: "watchdog" | "analyst" | "operator", reason: string): Promise<{ triggered: boolean; job_id?: string; message: string }>;
+
+  // ── Analytics & Data Governance ───────────────────────────────────────────
+
+  /**
+   * Return the full multi-touch path for all sessions mapped to an account domain.
+   * Requires BigQuery mode.
+   */
+  queryAccountJourney(
+    account_domain: string,
+    lookback_days: number,
+    conversion_type?: string
+  ): Promise<{
+    account_domain: string;
+    entity_count: number;
+    touchpoints: object[];
+    conversions: object[];
+    path_summary: object;
+  } | null>;
+
+  /**
+   * Return capture rate time series for all monitored namespaces.
+   * Reads from watchdog_capture_rate_log.
+   */
+  getSignalCaptureRates(
+    hours_back: number,
+    platform?: string
+  ): Promise<object[]>;
+
+  /**
+   * Return CRM null-field statistics for recent lead records.
+   */
+  getCrmNullFieldStats(since_hours: number): Promise<{
+    source: string;
+    hours_sampled: number;
+    total_leads: number;
+    null_media_ids: number;
+    null_pct: number;
+    threshold_pct: number;
+    breach: boolean;
+  } | null>;
+
+  // ── Interactive Media Actions ─────────────────────────────────────────────
+
+  /**
+   * Log and optionally execute an audience suppression on a platform.
+   * Routes to the Operator agent if PAID_MEDIA_AGENT_URL is set.
+   */
+  pushAudienceSuppression(
+    platform: string,
+    advertiser_id: string,
+    audience_list_id: string,
+    domains: string[],
+    rationale: string
+  ): Promise<object>;
+
+  /**
+   * Log and optionally execute a budget reallocation between campaigns.
+   * Routes to the Operator agent if PAID_MEDIA_AGENT_URL is set.
+   */
+  reallocateMediaBudget(
+    platform: string,
+    advertiser_id: string,
+    source_campaign_id: string,
+    target_campaign_id: string,
+    amount_usd: number,
+    rationale: string
+  ): Promise<object>;
 }

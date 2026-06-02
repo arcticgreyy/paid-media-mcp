@@ -610,4 +610,161 @@ Output rules:
   (Summary of how to upload this file in the ${args.platform.toUpperCase()} UI)
 `,
   },
+
+  // ── Agent workflow prompts ────────────────────────────────────────────────
+
+  {
+    name: "diagnose_tracking_drop",
+    description:
+      "Watchdog workflow: diagnose a suspected tracking degradation across the full pipeline. " +
+      "Checks signal capture rates, CRM null fields, and active alerts, then produces " +
+      "a structured anomaly report identifying the break point and likely cause.",
+    arguments: [
+      {
+        name: "suspected_platform",
+        description: "Platform where the drop was noticed, e.g. 'meta', 'google_ads'. Leave blank for full audit.",
+        required: false,
+      },
+      {
+        name: "since_hours",
+        description: "How many hours back to investigate (default: 24)",
+        required: false,
+      },
+    ],
+    handler: (args: Record<string, string>) => {
+      const platform = args.suspected_platform ? `Focus especially on platform: ${args.suspected_platform}.` : "Audit all platforms.";
+      const hours = args.since_hours || "24";
+      return `You are the Watchdog Agent — a data governance specialist for a paid media attribution system.
+
+A tracking degradation has been reported or suspected. Your job is to diagnose it systematically and produce a clear anomaly report for the engineering and media teams.
+
+${platform}
+
+## Investigation Steps
+
+1. **Signal Capture Rates** — Call \`check_signal_capture_health\` (hours_back: ${hours}).
+   - Note which namespaces are below threshold.
+   - Check if the drop is isolated to one platform or affects multiple.
+   - Is there a pattern suggesting a specific browser/OS (e.g. Safari ITP blocking first-party cookies)?
+
+2. **CRM Null Fields** — Call \`detect_crm_null_fields\` (since_hours: ${hours}).
+   - Is the null rate spiking? When did it start?
+   - Cross-reference with the signal capture drop: do they match in timing?
+
+3. **Active Alerts** — Call \`get_watchdog_alerts\` (status: "open").
+   - List all open alerts with severity.
+   - Have any been open for longer than expected without resolution?
+
+4. **Identity Graph Impact** — Call \`get_attribution_run_history\` (limit: 3).
+   - Did the identity match rate drop in recent attribution runs?
+   - Is this affecting attribution model accuracy?
+
+## Anomaly Report Format
+
+Produce a structured report with these sections:
+
+**Status**: RED / YELLOW / GREEN
+
+**Break Point Identified**: Which specific signal namespace is failing, on which platform, since approximately when.
+
+**Root Cause Hypothesis**:
+- Browser policy change (ITP, third-party cookie deprecation)?
+- Tag deployment issue (GTM container published incorrectly)?
+- Platform API / pixel outage?
+- Server-side GTM configuration error?
+- CRM field mapping changed?
+
+**Affected Attribution Data**:
+- What % of conversions are now arriving unattributed?
+- Which channels/campaigns are most impacted?
+- Is current attribution data reliable enough for optimization decisions?
+
+**Engineering Action Items**: Specific, ordered steps to diagnose and fix.
+
+**Marketing Action Items**: What to pause, hold, or caveat until the fix is verified.
+
+Be precise. Name the exact namespace_id and platform. Avoid vague language.`;
+    },
+  },
+
+  {
+    name: "optimize_high_value_pathways",
+    description:
+      "Analyst workflow: identify campaigns that are driving outsized pipeline contribution " +
+      "but are being underfunded, and recommend precise budget reallocations grounded in " +
+      "multi-touch attribution data.",
+    arguments: [
+      {
+        name: "conversion_type",
+        description: "Which pipeline milestone to optimize for, e.g. 'opportunity_created'. Default: opportunity_created",
+        required: false,
+      },
+      {
+        name: "period_days",
+        description: "Attribution period to analyze in days (default: 30)",
+        required: false,
+      },
+    ],
+    handler: (args: Record<string, string>) => {
+      const convType = args.conversion_type || "opportunity_created";
+      const days = parseInt(args.period_days || "30");
+      const today = new Date().toISOString().split("T")[0];
+      const startDate = new Date(Date.now() - days * 86400000).toISOString().split("T")[0];
+      return `You are the Analyst Agent — a B2B paid media attribution specialist.
+
+Your goal is to identify high-value touchpoint pathways that are contributing disproportionately
+to pipeline and recommend precise budget reallocations to fund them better.
+
+## Context
+- Optimization target: **${convType}**
+- Analysis period: **${startDate} to ${today}** (${days} days)
+- Read the resource \`paid-media://config/attribution-milestones\` for pipeline stage definitions.
+- Read the resource \`paid-media://schema/attribution\` for table schemas before writing any SQL.
+
+## Step 1 — Check Data Quality
+Call \`get_watchdog_alerts\` (status: "open").
+If any CRITICAL alerts exist, note them prominently — attribution results may be unreliable.
+
+## Step 2 — Attribution Results
+Call \`get_attribution_results\` (conversion_type: "${convType}").
+Identify:
+- Top 3 channels by attributed_conversions
+- Bottom 3 channels by attributed_conversions with >$0 spend
+- Channels with high credit_share_pct but low attributed_cpa (most efficient)
+- Channels with low credit_share_pct but high spend (over-funded)
+
+## Step 3 — Latest Model Run
+Call \`get_attribution_run_history\` (limit: 1).
+Note: model used, identity_match_rate, avg_path_length.
+If match rate < 60%, caveat all findings — stitching is incomplete.
+
+## Step 4 — Account Journey Spot-Check (if BigQuery available)
+If there is a specific account domain you want to investigate, call \`query_account_journey\`.
+This shows the actual multi-platform, cross-device path that led to pipeline — invaluable for stakeholder storytelling.
+
+## Step 5 — Budget Efficiency Analysis
+For each channel in the attribution results:
+- Calculate: credit_share_pct vs. estimated_budget_share (use total_spend / sum of all spend)
+- Flag: channels where credit_share_pct > budget_share_pct by more than 10 points (underfunded)
+- Flag: channels where budget_share_pct > credit_share_pct by more than 10 points (overfunded)
+
+## Step 6 — Reallocation Recommendations
+For each recommended reallocation:
+1. State the source campaign (overfunded) and target campaign (underfunded)
+2. Recommend a specific dollar amount to move (respect the max_budget_shift_pct guardrail)
+3. Show the math: expected improvement in attributed CPA if credit shares realign
+4. Assign a confidence level (High / Medium / Low) based on data volume and identity match rate
+
+If you want to execute a reallocation, call \`reallocate_media_budget\` — it will log the action
+and route it for approval before executing.
+
+## Output Format
+- **Data Quality Status**: (from alerts)
+- **Attribution Model**: (name, period, match rate)
+- **Top Performing Channels**: (table with attributed conversions, CPA, ROAS)
+- **Underfunded Channels**: (credit share vs. budget share gap)
+- **Reallocation Recommendations**: (ranked, with dollar amounts and rationale)
+- **Confidence Assessment**: (overall reliability of these findings)`;
+    },
+  },
 ];

@@ -432,6 +432,155 @@ export class BigQueryAdapter extends FileAdapter {
       }));
     } catch { return []; }
   }
+
+  // ── Analytics & Data Governance ───────────────────────────────────────────
+
+  override async queryAccountJourney(
+    account_domain: string,
+    lookback_days: number,
+    conversion_type?: string
+  ) {
+    const bq = await this.client();
+    const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
+    const convFilter = conversion_type ? `AND c.conversion_type = '${conversion_type}'` : "";
+
+    try {
+      const [touchRows] = await bq.query(`
+        WITH account_entities AS (
+          -- Find canonical entities linked to this domain
+          SELECT DISTINCT ies.entity_id
+          FROM ${ds}.identity_entity_signals ies
+          JOIN ${ds}.identity_entities e ON e.entity_id = ies.entity_id
+          WHERE (
+            e.company_domain = '${account_domain}'
+            OR ies.identifier_value = '${account_domain}'
+          )
+          AND ies.is_active = TRUE
+        )
+        SELECT
+          t.touchpoint_id,
+          t.entity_id,
+          t.touchpoint_at,
+          t.touchpoint_type,
+          t.platform,
+          t.channel,
+          t.campaign_id,
+          t.funnel_stage,
+          t.path_position,
+          t.path_total_touches,
+          r.credit_weight,
+          r.credit_conversions,
+          r.model_name
+        FROM ${ds}.touchpoint_events t
+        JOIN account_entities ae ON ae.entity_id = t.entity_id
+        LEFT JOIN ${ds}.attribution_results r ON r.touchpoint_id = t.touchpoint_id
+          AND r.run_id = (
+            SELECT run_id FROM ${ds}.attribution_runs
+            WHERE status = 'completed' ORDER BY completed_at DESC LIMIT 1
+          )
+        WHERE t.touchpoint_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL ${lookback_days} DAY)
+        ORDER BY t.touchpoint_at ASC
+        LIMIT 500
+      `);
+
+      const [convRows] = await bq.query(`
+        WITH account_entities AS (
+          SELECT DISTINCT ies.entity_id
+          FROM ${ds}.identity_entity_signals ies
+          JOIN ${ds}.identity_entities e ON e.entity_id = ies.entity_id
+          WHERE e.company_domain = '${account_domain}' AND ies.is_active = TRUE
+        )
+        SELECT
+          c.conversion_id, c.entity_id, c.converted_at,
+          c.conversion_type, c.conversion_value, c.deal_value, c.pipeline_stage
+        FROM ${ds}.conversion_events c
+        JOIN account_entities ae ON ae.entity_id = c.entity_id
+        WHERE c.converted_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL ${lookback_days} DAY)
+        ${convFilter}
+        ORDER BY c.converted_at ASC
+      `);
+
+      const entities = new Set((touchRows as Record<string, unknown>[]).map(r => String(r.entity_id)));
+      const channels = [...new Set((touchRows as Record<string, unknown>[]).map(r => String(r.channel)))];
+      const platforms = [...new Set((touchRows as Record<string, unknown>[]).map(r => String(r.platform)))];
+      const totalCredit = (touchRows as Record<string, unknown>[])
+        .reduce((sum, r) => sum + Number(r.credit_weight ?? 0), 0);
+
+      return {
+        account_domain,
+        entity_count:  entities.size,
+        touchpoints:   touchRows as object[],
+        conversions:   convRows as object[],
+        path_summary: {
+          total_touchpoints:  touchRows.length,
+          total_conversions:  convRows.length,
+          channels_touched:   channels,
+          platforms_touched:  platforms,
+          total_credit_weight: Math.round(totalCredit * 100) / 100,
+          lookback_days,
+        },
+      };
+    } catch { return null; }
+  }
+
+  override async getSignalCaptureRates(hours_back: number, platform?: string): Promise<object[]> {
+    const bq = await this.client();
+    const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
+    const pFilter = platform ? `AND platform = '${platform}'` : "";
+    try {
+      const [rows] = await bq.query(`
+        SELECT
+          namespace_id,
+          platform,
+          AVG(capture_rate_pct)                    AS avg_capture_rate_pct,
+          MIN(capture_rate_pct)                    AS min_capture_rate_pct,
+          MAX(capture_rate_pct)                    AS max_capture_rate_pct,
+          SUM(total_events)                        AS total_events,
+          COUNTIF(is_anomaly)                      AS anomaly_count,
+          MAX(logged_at)                           AS last_logged_at
+        FROM ${ds}.watchdog_capture_rate_log
+        WHERE logged_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL ${hours_back} HOUR)
+        ${pFilter}
+        GROUP BY namespace_id, platform
+        ORDER BY avg_capture_rate_pct ASC
+      `);
+      return rows as object[];
+    } catch { return []; }
+  }
+
+  override async getCrmNullFieldStats(since_hours: number) {
+    const bq = await this.client();
+    const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
+    try {
+      const [rows] = await bq.query(`
+        SELECT
+          COUNTIF(gclid IS NULL AND fbclid IS NULL AND li_fat_id IS NULL
+                  AND ttclid IS NULL AND ga_client_id IS NULL) AS null_media_ids,
+          COUNTIF(utm_source IS NULL OR utm_source = '')        AS null_utm,
+          COUNT(*)                                               AS total_leads
+        FROM ${ds}.crm_leads_staging
+        WHERE created_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL ${since_hours} HOUR)
+      `);
+      if (!rows.length) return null;
+      const r = rows[0] as Record<string, unknown>;
+      const total = Number(r.total_leads ?? 0);
+      const nullCount = Number(r.null_media_ids ?? 0);
+      const nullPct = total > 0 ? Math.round((nullCount / total) * 1000) / 10 : 0;
+      return {
+        source:        "bigquery",
+        hours_sampled: since_hours,
+        total_leads:   total,
+        null_media_ids: nullCount,
+        null_pct:      nullPct,
+        threshold_pct: 5,
+        breach:        nullPct > 5 && total > 0,
+      };
+    } catch { return null; }
+  }
+
+  // ── Interactive Media Actions ─────────────────────────────────────────────
+  // BigQuery adapter routes these to the Operator agent (via inherited FileAdapter logic)
+  // which already has the correct platform API credentials.
 }
 
 // ── Row mapping ──────────────────────────────────────────────────────────────

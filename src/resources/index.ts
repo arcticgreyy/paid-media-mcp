@@ -121,4 +121,251 @@ export const registerResources = (adapter: PaidMediaAdapter) => [
       return JSON.stringify(config, null, 2);
     },
   },
+
+  // ── Schema resources (from paid-media-schema) ─────────────────────────────
+  // These expose the BigQuery table schemas so Claude can write accurate SQL
+  // without guessing field names. Critical for text-to-SQL attribution queries.
+
+  {
+    uri: "paid-media://schema/identity",
+    name: "Identity Schema Reference",
+    description:
+      "The paid-media-schema identity layer table schemas: identity_signals, identity_entities, " +
+      "identity_entity_signals, identity_stitching_log. " +
+      "Read this before writing any SQL that joins on entity_id, namespace_id, or identifier_value. " +
+      "Also includes the namespace category taxonomy and confidence scoring rules.",
+    mimeType: "text/plain",
+    handler: async () => {
+      const namespaces = await adapter.getIdentityNamespaces();
+      const categories = [...new Set(namespaces.map(n => n.category))];
+      return [
+        "# Identity Layer Schema Reference",
+        "",
+        "## Table: identity_signals",
+        "| Column | Type | Description |",
+        "|--------|------|-------------|",
+        "| signal_id | STRING | UUID primary key |",
+        "| session_id | STRING | Links to sessions.session_id |",
+        "| namespace_id | STRING | e.g. 'platform_click_id.google.gclid' |",
+        "| identifier_value | STRING | The actual signal value (hashed where PII) |",
+        "| captured_at | TIMESTAMP | When the signal was captured |",
+        "| capture_source | STRING | landing_page \\| analytics \\| crm \\| capi \\| sdk |",
+        "| confidence_score | FLOAT64 | 0.0–1.0 |",
+        "| is_deterministic | BOOL | From namespace registry |",
+        "| expires_at | TIMESTAMP | Nullable — based on namespace lifetime_days |",
+        "",
+        "## Table: identity_entities",
+        "| Column | Type | Description |",
+        "|--------|------|-------------|",
+        "| entity_id | STRING | UUID — stable canonical entity identifier |",
+        "| entity_type | STRING | person \\| account \\| household |",
+        "| company_domain | STRING | e.g. 'acme.com' (B2B account stitching) |",
+        "| company_name | STRING | From CRM or IP intelligence |",
+        "| confidence_tier | STRING | high \\| medium \\| low |",
+        "| signal_count | INT64 | Total signals stitched |",
+        "| first_seen_at | TIMESTAMP | |",
+        "| last_seen_at | TIMESTAMP | |",
+        "",
+        "## Table: identity_entity_signals (the graph)",
+        "| Column | Type | Description |",
+        "|--------|------|-------------|",
+        "| entity_id | STRING | → identity_entities.entity_id |",
+        "| namespace_id | STRING | → identity_namespaces registry |",
+        "| identifier_value | STRING | |",
+        "| match_method | STRING | deterministic \\| probabilistic \\| declarative |",
+        "| confidence_score | FLOAT64 | |",
+        "| stitched_by | STRING | analyst_agent \\| watchdog_agent \\| import |",
+        "| first_observed_at | TIMESTAMP | |",
+        "| last_observed_at | TIMESTAMP | |",
+        "| observation_count | INT64 | |",
+        "",
+        "## Namespace Categories",
+        categories.map(c => `- ${c}`).join("\n"),
+        "",
+        "## Registered Namespaces (sample — use list_identity_namespaces for full list)",
+        namespaces.slice(0, 15).map(n =>
+          `- ${n.namespace_id} | ${n.display_name} | deterministic: ${n.deterministic}`
+        ).join("\n"),
+      ].join("\n");
+    },
+  },
+
+  {
+    uri: "paid-media://schema/attribution",
+    name: "Attribution Schema Reference",
+    description:
+      "The paid-media-schema attribution layer table schemas: attribution_paths, attribution_runs, " +
+      "attribution_results, attribution_channel_summary. " +
+      "Read this before writing attribution SQL or interpreting model outputs. " +
+      "Includes column descriptions, the credit_weight formula logic, and join keys.",
+    mimeType: "text/plain",
+    handler: async () => {
+      const latestRun = await adapter.getAttributionRuns(1);
+      const runContext = latestRun[0]
+        ? `Latest run: ${latestRun[0].run_id} | Model: ${latestRun[0].model_name} | ` +
+          `Period: ${latestRun[0].period_start} → ${latestRun[0].period_end} | Status: ${latestRun[0].status}`
+        : "No completed runs yet.";
+      return [
+        "# Attribution Layer Schema Reference",
+        "",
+        `## Context: ${runContext}`,
+        "",
+        "## Table: attribution_results (touchpoint-level credit)",
+        "| Column | Type | Description |",
+        "|--------|------|-------------|",
+        "| result_id | STRING | UUID |",
+        "| run_id | STRING | → attribution_runs.run_id |",
+        "| entity_id | STRING | → identity_entities.entity_id |",
+        "| conversion_date | DATE | When the conversion occurred |",
+        "| touchpoint_date | DATE | When the touchpoint occurred |",
+        "| platform | STRING | google_ads \\| meta \\| linkedin \\| dv360 \\| etc. |",
+        "| channel | STRING | paid_search_brand \\| paid_social_prospecting \\| display_retargeting \\| etc. |",
+        "| campaign_id | STRING | Internal campaign ID |",
+        "| path_position | INT64 | 1 = first touch, path_total_touches = last touch |",
+        "| path_total_touches | INT64 | Total touches in this conversion path |",
+        "| conversion_type | STRING | opportunity_created \\| purchase \\| lead \\| etc. |",
+        "| conversion_value | FLOAT64 | Monetary value at conversion |",
+        "| deal_value | FLOAT64 | Full deal/ARR value (B2B) |",
+        "| credit_weight | FLOAT64 | 0.0–1.0: this touch's share of conversion credit |",
+        "| credit_conversions | FLOAT64 | credit_weight × 1 (fractional conversion count) |",
+        "| credit_value | FLOAT64 | credit_weight × conversion_value |",
+        "| model_name | STRING | full_path \\| first_touch \\| last_touch \\| linear \\| etc. |",
+        "",
+        "## Table: attribution_channel_summary (pre-aggregated — use for reporting)",
+        "| Column | Type | Description |",
+        "|--------|------|-------------|",
+        "| run_id | STRING | |",
+        "| model_name | STRING | |",
+        "| period_start | DATE | |",
+        "| period_end | DATE | |",
+        "| platform | STRING | |",
+        "| channel | STRING | |",
+        "| conversion_type | STRING | |",
+        "| attributed_conversions | FLOAT64 | SUM of credit_conversions |",
+        "| attributed_value | FLOAT64 | SUM of credit_value |",
+        "| credit_share_pct | FLOAT64 | % of total attributed credit |",
+        "| total_spend | FLOAT64 | Joined from platform_daily_spend |",
+        "| attributed_cpa | FLOAT64 | spend / attributed_conversions |",
+        "| attributed_roas | FLOAT64 | attributed_value / spend |",
+        "",
+        "## Full-Path Model Credit Formula",
+        "- Single touch: 100%",
+        "- First touch: configured first_touch_pct (default 30%)",
+        "- Last touch: configured last_touch_pct (default 30%)",
+        "- Middle touches: remaining (40%) split equally across all middle touches",
+        "",
+        "## Key Join Pattern",
+        "attribution_results → identity_entities: JOIN ON entity_id",
+        "attribution_results → platform_campaigns: JOIN ON campaign_id",
+        "attribution_channel_summary → platform_daily_spend: JOIN ON platform + date range",
+        "Use run_id to filter to a specific model run; omit for latest run using MAX(completed_at).",
+      ].join("\n");
+    },
+  },
+
+  {
+    uri: "paid-media://config/attribution-milestones",
+    name: "Attribution Milestones & Model Config",
+    description:
+      "B2B pipeline stage definitions and attribution model weight configurations. " +
+      "Defines what each conversion_type means in the pipeline (Lead → MQL → SQL → Opportunity → Won), " +
+      "which touches get credit at each stage, and the configured model weights. " +
+      "Read this before analyzing attribution results to understand what 'good' looks like " +
+      "and which conversion types correspond to which pipeline stages.",
+    mimeType: "application/json",
+    handler: async () => {
+      const configs = await adapter.getAttributionConfigurations();
+      return JSON.stringify({
+        attribution_model_configs: configs,
+        b2b_pipeline_stages: {
+          description: "Standard B2B funnel stages mapped to conversion_type values in the schema",
+          stages: [
+            {
+              stage:           "Awareness",
+              conversion_types: [],
+              funnel_position: "upper",
+              notes:           "No conversion event — touchpoints only. Credit tracked but no milestone.",
+            },
+            {
+              stage:           "Lead",
+              conversion_types: ["lead", "lead_form", "contact_form", "content_download", "webinar_registration"],
+              funnel_position: "upper-mid",
+              weight_context:  "First-touch credit is highest here — awareness channels drive lead volume.",
+            },
+            {
+              stage:           "MQL",
+              conversion_types: ["mql", "demo_booked", "trial_started"],
+              funnel_position: "mid",
+              weight_context:  "Middle touches matter here — nurture campaigns and retargeting.",
+            },
+            {
+              stage:           "Opportunity Created",
+              conversion_types: ["opportunity_created", "sql"],
+              funnel_position: "lower-mid",
+              weight_context:  "Most valuable B2B leading indicator. Balance of all touch types.",
+              notes:           "Primary KPI for B2B paid media attribution.",
+            },
+            {
+              stage:           "Closed Won",
+              conversion_types: ["opportunity_won", "contract_signed", "purchase", "subscription"],
+              funnel_position: "lower",
+              weight_context:  "Last-touch credit highest. Often shows brand and search.",
+              notes:           "Revenue milestone — use deal_value not conversion_value for ARR.",
+            },
+          ],
+        },
+        full_path_weights: {
+          description: "Default Full-Path attribution weights used by the Analyst agent",
+          first_touch_pct: 0.30,
+          last_touch_pct:  0.30,
+          middle_pct:      0.40,
+          middle_distribution: "Split equally across all middle touches",
+          upgrade_trigger: "When path count > 1,000, Shapley/Markov models are statistically valid",
+        },
+        signal_confidence_tiers: {
+          high:   "≥1 deterministic signal (hashed email, CRM ID, authenticated user ID, platform click ID)",
+          medium: "2+ probabilistic signals that corroborate (email domain + analytics cookie)",
+          low:    "Single probabilistic signal only (IP address, session cookie alone)",
+        },
+      }, null, 2);
+    },
+  },
+
+  // ── Live agent output resources ───────────────────────────────────────────
+
+  {
+    uri: "paid-media://agent-status",
+    name: "Autonomous Agent Status",
+    description:
+      "Current status of all three autonomous agents: latest Watchdog alerts, most recent " +
+      "Analyst attribution run, and any Operator actions pending approval. " +
+      "Read this at the start of any analysis session to understand the current data quality " +
+      "and what the agents have found since the last run.",
+    mimeType: "application/json",
+    handler: async () => {
+      const [alerts, runs, insights, approvals] = await Promise.all([
+        adapter.getWatchdogAlerts("open"),
+        adapter.getAttributionRuns(1),
+        adapter.getAnalystInsights({ status: "new", limit: 5 }),
+        adapter.getOperatorPendingApprovals(),
+      ]);
+      return JSON.stringify({
+        data_quality: {
+          status:         alerts.filter(a => a.severity === "critical").length > 0 ? "RED" :
+                          alerts.length > 0 ? "YELLOW" : "GREEN",
+          open_alerts:    alerts.length,
+          critical_alerts: alerts.filter(a => a.severity === "critical").length,
+          latest_alerts:  alerts.slice(0, 3),
+        },
+        attribution: {
+          latest_run:     runs[0] ?? null,
+          new_insights:   insights,
+        },
+        operator: {
+          pending_approvals: approvals.length,
+          actions:          approvals,
+        },
+      }, null, 2);
+    },
+  },
 ];

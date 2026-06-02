@@ -377,6 +377,119 @@ export class FileAdapter implements PaidMediaAdapter {
     } catch { return []; }
   }
 
+  // ── Analytics & Data Governance ───────────────────────────────────────────
+  // File mode cannot run live BigQuery queries. These return "not available"
+  // stubs that tell the user to enable BigQuery mode.
+
+  async queryAccountJourney(
+    account_domain: string,
+    _lookback_days: number,
+    _conversion_type?: string
+  ): Promise<{ account_domain: string; entity_count: number; touchpoints: object[]; conversions: object[]; path_summary: object } | null> {
+    const agentUrl = process.env.PAID_MEDIA_AGENT_URL;
+    if (agentUrl) {
+      try {
+        const res = await fetch(`${agentUrl}/query/account-journey`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ account_domain, lookback_days: _lookback_days, conversion_type: _conversion_type }),
+        });
+        if (res.ok) return res.json() as Promise<{ account_domain: string; entity_count: number; touchpoints: object[]; conversions: object[]; path_summary: object }>;
+      } catch { /* fall through */ }
+    }
+    console.error("[FileAdapter] queryAccountJourney requires BigQuery mode (BIGQUERY_PROJECT_ID) or PAID_MEDIA_AGENT_URL");
+    return null;
+  }
+
+  async getSignalCaptureRates(_hours_back: number, _platform?: string): Promise<object[]> {
+    // Read from cached watchdog_capture_rate_log file if present
+    const path = resolve(this.dataDir, "watchdog-capture-rates.json");
+    if (existsSync(path)) {
+      try {
+        const raw = JSON.parse(readFileSync(path, "utf-8")) as object[];
+        return _platform ? raw.filter((r) => (r as Record<string, unknown>)["platform"] === _platform) : raw;
+      } catch { /* fall through */ }
+    }
+    return [];
+  }
+
+  async getCrmNullFieldStats(_since_hours: number) {
+    // Check watchdog alerts for null_crm_fields type as a proxy
+    const alerts = await this.getWatchdogAlerts("open");
+    const nullAlert = alerts.find((a) => a.alert_type === "null_crm_fields");
+    if (nullAlert) {
+      return {
+        source:        "watchdog_alert_cache",
+        hours_sampled: _since_hours,
+        total_leads:   0,
+        null_media_ids: 0,
+        null_pct:      nullAlert.metric_value ?? 0,
+        threshold_pct: nullAlert.threshold_value ?? 5,
+        breach:        nullAlert.status === "open",
+      };
+    }
+    return null;
+  }
+
+  // ── Interactive Media Actions ─────────────────────────────────────────────
+
+  async pushAudienceSuppression(
+    platform: string,
+    advertiser_id: string,
+    audience_list_id: string,
+    domains: string[],
+    rationale: string
+  ): Promise<object> {
+    const agentUrl = process.env.PAID_MEDIA_AGENT_URL;
+    if (agentUrl) {
+      try {
+        const res = await fetch(`${agentUrl}/action/audience-suppression`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ platform, advertiser_id, audience_list_id, domains, rationale }),
+        });
+        return res.json() as object;
+      } catch (err) {
+        return { executed: false, message: `Agent unreachable: ${err instanceof Error ? err.message : String(err)}` };
+      }
+    }
+    return {
+      executed:      false,
+      queued:        true,
+      message:       "PAID_MEDIA_AGENT_URL not configured. Action logged as pending. Set the env var to enable autonomous execution.",
+      pending_action: { platform, advertiser_id, audience_list_id, domain_count: domains.length, rationale },
+    };
+  }
+
+  async reallocateMediaBudget(
+    platform: string,
+    advertiser_id: string,
+    source_campaign_id: string,
+    target_campaign_id: string,
+    amount_usd: number,
+    rationale: string
+  ): Promise<object> {
+    const agentUrl = process.env.PAID_MEDIA_AGENT_URL;
+    if (agentUrl) {
+      try {
+        const res = await fetch(`${agentUrl}/action/reallocate-budget`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ platform, advertiser_id, source_campaign_id, target_campaign_id, amount_usd, rationale }),
+        });
+        return res.json() as object;
+      } catch (err) {
+        return { executed: false, message: `Agent unreachable: ${err instanceof Error ? err.message : String(err)}` };
+      }
+    }
+    return {
+      executed:      false,
+      queued:        true,
+      message:       "PAID_MEDIA_AGENT_URL not configured. Action logged as pending.",
+      pending_action: { platform, source_campaign_id, target_campaign_id, amount_usd, rationale },
+    };
+  }
+
   async triggerAgentRun(
     agent: "watchdog" | "analyst" | "operator",
     reason: string

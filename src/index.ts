@@ -26,6 +26,8 @@ import { measurementTools } from "./tools/measurement.js";
 import { platformTools } from "./tools/platforms.js";
 import { identityTools } from "./tools/identity.js";
 import { agentOutputTools } from "./tools/agent-outputs.js";
+import { analyticsTools } from "./tools/analytics.js";
+import { mediaActionTools } from "./tools/media-actions.js";
 import { registerResources } from "./resources/index.js";
 import { prompts } from "./prompts/index.js";
 
@@ -75,6 +77,8 @@ const allTools = [
   ...platformTools(adapter),
   ...identityTools(adapter),
   ...agentOutputTools(adapter),
+  ...analyticsTools(adapter),
+  ...mediaActionTools(adapter),
 ];
 
 const toolMap = new Map(allTools.map((t) => [t.name, t]));

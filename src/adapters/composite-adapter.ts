@@ -223,4 +223,17 @@ export class CompositeAdapter implements PaidMediaAdapter {
   getAnalystInsights(filters?: { priority?: "high" | "medium" | "low"; status?: string; limit?: number }) { return this.cfg.default.getAnalystInsights(filters); }
   getOperatorPendingApprovals() { return this.cfg.default.getOperatorPendingApprovals(); }
   triggerAgentRun(agent: "watchdog" | "analyst" | "operator", reason: string) { return this.cfg.default.triggerAgentRun(agent, reason); }
+
+  // ── Analytics & Data Governance ───────────────────────────────────────────
+  queryAccountJourney(domain: string, days: number, type?: string) { return this.cfg.default.queryAccountJourney(domain, days, type); }
+  getSignalCaptureRates(hours: number, platform?: string) { return this.cfg.default.getSignalCaptureRates(hours, platform); }
+  getCrmNullFieldStats(hours: number) { return this.cfg.default.getCrmNullFieldStats(hours); }
+
+  // ── Interactive Media Actions ─────────────────────────────────────────────
+  pushAudienceSuppression(platform: string, adv: string, list: string, domains: string[], rationale: string) {
+    return this.cfg.default.pushAudienceSuppression(platform, adv, list, domains, rationale);
+  }
+  reallocateMediaBudget(platform: string, adv: string, src: string, tgt: string, amt: number, rationale: string) {
+    return this.cfg.default.reallocateMediaBudget(platform, adv, src, tgt, amt, rationale);
+  }
 }
