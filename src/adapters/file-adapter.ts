@@ -1,4 +1,5 @@
-import { readFileSync, existsSync } from "fs";
+import { readFileSync } from "fs";
+import { existsSync } from "fs";
 import { resolve } from "path";
 import type { PaidMediaAdapter, CampaignFilters, PerformanceFilters } from "./base.js";
 import type {
@@ -19,6 +20,8 @@ import type {
   PlatformsConfig,
   PerformanceRecord,
   AttributionConfiguration,
+  AttributionChannelSummary,
+  AttributionRun,
   ReportingTemplate,
   Team,
   TeamMember,
@@ -27,6 +30,10 @@ import type {
   TestStatus,
   TestType,
   ThirdPartyAudienceLayer,
+  IdentityNamespace,
+  WatchdogAlert,
+  AnalystInsight,
+  OperatorPendingApproval,
 } from "../types.js";
 
 function loadJson<T>(filePath: string): T {
@@ -66,8 +73,10 @@ const EMPTY_MEASUREMENT: MeasurementSetup = {
 
 export class FileAdapter implements PaidMediaAdapter {
   private data: PaidMediaData;
+  protected readonly dataDir: string;
 
   constructor(dataDir = "./data") {
+    this.dataDir = dataDir;
     this.data = {
       metadata: { company_name: "", primary_currency: "USD", fiscal_year_start: "01-01", last_updated: "" },
       accounts: [],
@@ -278,5 +287,126 @@ export class FileAdapter implements PaidMediaAdapter {
 
   async getPlatformsConfig(): Promise<PlatformsConfig> {
     return this.data.platforms_config;
+  }
+
+  // ── Identity ────────────────────────────────────────────────────────────────
+  // Namespace registry is read from paid-media-schema/namespaces/identity_namespaces.json
+  // if PAID_MEDIA_SCHEMA_DIR is set, otherwise from data/identity_namespaces.json.
+
+  private loadNamespaces(): IdentityNamespace[] {
+    const candidates = [
+      process.env.PAID_MEDIA_SCHEMA_DIR
+        ? resolve(process.env.PAID_MEDIA_SCHEMA_DIR, "namespaces/identity_namespaces.json")
+        : null,
+      resolve(this.dataDir as string, "identity_namespaces.json"),
+    ].filter(Boolean) as string[];
+
+    for (const path of candidates) {
+      if (existsSync(path)) {
+        try {
+          const raw = JSON.parse(readFileSync(path, "utf-8")) as { namespaces: IdentityNamespace[] };
+          return raw.namespaces ?? [];
+        } catch { /* try next */ }
+      }
+    }
+    return [];
+  }
+
+  async getIdentityNamespaces(category?: string): Promise<IdentityNamespace[]> {
+    const all = this.loadNamespaces();
+    return category ? all.filter(n => n.category === category) : all;
+  }
+
+  async getIdentityNamespace(namespace_id: string): Promise<IdentityNamespace | null> {
+    return this.loadNamespaces().find(n => n.namespace_id === namespace_id) ?? null;
+  }
+
+  // ── Attribution Results ─────────────────────────────────────────────────────
+
+  async getLatestAttributionResults(conversion_type?: string): Promise<AttributionChannelSummary | null> {
+    const path = resolve(this.dataDir as string, "attribution-results.json");
+    if (!existsSync(path)) return null;
+    try {
+      const raw = JSON.parse(readFileSync(path, "utf-8")) as AttributionChannelSummary;
+      if (conversion_type) {
+        return {
+          ...raw,
+          channel_summary: raw.channel_summary.filter(c => c.conversion_type === conversion_type),
+        };
+      }
+      return raw;
+    } catch { return null; }
+  }
+
+  async getAttributionRuns(limit = 10): Promise<AttributionRun[]> {
+    const path = resolve(this.dataDir as string, "attribution-runs.json");
+    if (!existsSync(path)) return [];
+    try {
+      const raw = JSON.parse(readFileSync(path, "utf-8")) as AttributionRun[];
+      return raw.slice(0, limit);
+    } catch { return []; }
+  }
+
+  // ── Agent Outputs ───────────────────────────────────────────────────────────
+
+  async getWatchdogAlerts(status?: "open" | "acknowledged" | "resolved"): Promise<WatchdogAlert[]> {
+    const path = resolve(this.dataDir as string, "watchdog-alerts.json");
+    if (!existsSync(path)) return [];
+    try {
+      const raw = JSON.parse(readFileSync(path, "utf-8")) as WatchdogAlert[];
+      return status ? raw.filter(a => a.status === status) : raw;
+    } catch { return []; }
+  }
+
+  async getAnalystInsights(filters: { priority?: "high" | "medium" | "low"; status?: string; limit?: number } = {}): Promise<AnalystInsight[]> {
+    const path = resolve(this.dataDir as string, "analyst-insights.json");
+    if (!existsSync(path)) return [];
+    try {
+      let raw = JSON.parse(readFileSync(path, "utf-8")) as AnalystInsight[];
+      if (filters.priority) raw = raw.filter(i => i.priority === filters.priority);
+      if (filters.status)   raw = raw.filter(i => i.status === filters.status);
+      return raw.slice(0, filters.limit ?? 20);
+    } catch { return []; }
+  }
+
+  async getOperatorPendingApprovals(): Promise<OperatorPendingApproval[]> {
+    const path = resolve(this.dataDir as string, "operator-pending-approvals.json");
+    if (!existsSync(path)) return [];
+    try {
+      return JSON.parse(readFileSync(path, "utf-8")) as OperatorPendingApproval[];
+    } catch { return []; }
+  }
+
+  async triggerAgentRun(
+    agent: "watchdog" | "analyst" | "operator",
+    reason: string
+  ): Promise<{ triggered: boolean; job_id?: string; message: string }> {
+    const agentUrl = process.env.PAID_MEDIA_AGENT_URL;
+    if (!agentUrl) {
+      return {
+        triggered: false,
+        message: "PAID_MEDIA_AGENT_URL is not configured. Set this env var to the base URL of your deployed paid-media-agent service.",
+      };
+    }
+    try {
+      const res = await fetch(`${agentUrl}/run?agent=${agent}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+      const body = await res.json() as { job_id?: string; result?: string };
+      return {
+        triggered: res.ok,
+        job_id: body.job_id,
+        message: res.ok
+          ? `${agent} agent triggered successfully.${body.job_id ? ` Job ID: ${body.job_id}` : ""}`
+          : `Agent trigger failed: HTTP ${res.status}`,
+      };
+    } catch (err) {
+      return {
+        triggered: false,
+        message: `Failed to reach agent service: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
   }
 }

@@ -206,4 +206,21 @@ export class CompositeAdapter implements PaidMediaAdapter {
   // ── Platforms ──────────────────────────────────────────────────────────────
 
   getPlatformsConfig(): Promise<PlatformsConfig> { return this.d("platforms").getPlatformsConfig(); }
+
+  // ── Identity ───────────────────────────────────────────────────────────────
+
+  getIdentityNamespaces(category?: string) { return this.cfg.default.getIdentityNamespaces(category); }
+  getIdentityNamespace(namespace_id: string) { return this.cfg.default.getIdentityNamespace(namespace_id); }
+
+  // ── Attribution Results ────────────────────────────────────────────────────
+
+  getLatestAttributionResults(conversion_type?: string) { return this.cfg.default.getLatestAttributionResults(conversion_type); }
+  getAttributionRuns(limit?: number) { return this.cfg.default.getAttributionRuns(limit); }
+
+  // ── Agent Outputs ──────────────────────────────────────────────────────────
+
+  getWatchdogAlerts(status?: "open" | "acknowledged" | "resolved") { return this.cfg.default.getWatchdogAlerts(status); }
+  getAnalystInsights(filters?: { priority?: "high" | "medium" | "low"; status?: string; limit?: number }) { return this.cfg.default.getAnalystInsights(filters); }
+  getOperatorPendingApprovals() { return this.cfg.default.getOperatorPendingApprovals(); }
+  triggerAgentRun(agent: "watchdog" | "analyst" | "operator", reason: string) { return this.cfg.default.triggerAgentRun(agent, reason); }
 }

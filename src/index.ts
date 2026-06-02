@@ -13,6 +13,7 @@ import {
 import { z } from "zod";
 
 import { FileAdapter } from "./adapters/file-adapter.js";
+import { BigQueryAdapter } from "./adapters/bigquery-adapter.js";
 import { campaignTools } from "./tools/campaigns.js";
 import { teamTools } from "./tools/teams.js";
 import { performanceTools } from "./tools/performance.js";
@@ -23,6 +24,8 @@ import { testingTools } from "./tools/testing.js";
 import { audienceTools } from "./tools/audiences.js";
 import { measurementTools } from "./tools/measurement.js";
 import { platformTools } from "./tools/platforms.js";
+import { identityTools } from "./tools/identity.js";
+import { agentOutputTools } from "./tools/agent-outputs.js";
 import { registerResources } from "./resources/index.js";
 import { prompts } from "./prompts/index.js";
 
@@ -31,10 +34,31 @@ import { prompts } from "./prompts/index.js";
 const DATA_DIR = process.env.PAID_MEDIA_DATA_DIR ?? "./data";
 
 // ── Adapter ───────────────────────────────────────────────────────────────────
-// To connect to a live API instead of files, swap FileAdapter for your own
-// implementation of the PaidMediaAdapter interface (src/adapters/base.ts).
+// Auto-selects BigQueryAdapter when BQ env vars are set; falls back to FileAdapter.
+//
+// BigQuery mode env vars:
+//   BIGQUERY_PROJECT_ID   — GCP project ID
+//   BIGQUERY_DATASET_ID   — dataset name (default: "paid_media")
+//
+// Shared schema env vars:
+//   PAID_MEDIA_SCHEMA_DIR — path to paid-media-schema repo (for namespace registry)
+//   PAID_MEDIA_AGENT_URL  — base URL of deployed paid-media-agent (for trigger_agent_run)
 
-const adapter = new FileAdapter(DATA_DIR);
+function buildAdapter() {
+  const projectId = process.env.BIGQUERY_PROJECT_ID;
+  if (projectId) {
+    console.error(`[paid-media-mcp] Using BigQueryAdapter (project: ${projectId})`);
+    return new BigQueryAdapter({
+      projectId,
+      dataset: process.env.BIGQUERY_DATASET_ID ?? "paid_media",
+      dataDir: DATA_DIR,
+    });
+  }
+  console.error(`[paid-media-mcp] Using FileAdapter (data dir: ${DATA_DIR})`);
+  return new FileAdapter(DATA_DIR);
+}
+
+const adapter = buildAdapter();
 
 // ── Tools ─────────────────────────────────────────────────────────────────────
 
@@ -49,6 +73,8 @@ const allTools = [
   ...audienceTools(adapter),
   ...measurementTools(adapter),
   ...platformTools(adapter),
+  ...identityTools(adapter),
+  ...agentOutputTools(adapter),
 ];
 
 const toolMap = new Map(allTools.map((t) => [t.name, t]));

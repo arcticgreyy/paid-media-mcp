@@ -8,6 +8,8 @@ import type {
   TeamMember,
   PerformanceRecord,
   AttributionConfiguration,
+  AttributionChannelSummary,
+  AttributionRun,
   ReportingTemplate,
   AssetLibrary,
   AssetCategory,
@@ -24,6 +26,10 @@ import type {
   PixelTag,
   ConversionAPI,
   PlatformsConfig,
+  IdentityNamespace,
+  WatchdogAlert,
+  AnalystInsight,
+  OperatorPendingApproval,
 } from "../types.js";
 
 export interface CampaignFilters {
@@ -122,4 +128,38 @@ export interface PaidMediaAdapter {
 
   // GMP Platforms / Bulk Upload
   getPlatformsConfig(): Promise<PlatformsConfig>;
+
+  // ── Identity ──────────────────────────────────────────────────────────────
+
+  /** All registered identity namespaces from the shared schema registry. */
+  getIdentityNamespaces(category?: string): Promise<IdentityNamespace[]>;
+
+  /** A specific namespace definition by ID. */
+  getIdentityNamespace(namespace_id: string): Promise<IdentityNamespace | null>;
+
+  // ── Attribution Results (written by Analyst agent) ─────────────────────────
+
+  /** Latest attribution channel summary from the most recent Analyst run. */
+  getLatestAttributionResults(conversion_type?: string): Promise<AttributionChannelSummary | null>;
+
+  /** History of attribution model runs. */
+  getAttributionRuns(limit?: number): Promise<AttributionRun[]>;
+
+  // ── Agent Outputs ──────────────────────────────────────────────────────────
+
+  /** Active data quality alerts from the Watchdog agent. */
+  getWatchdogAlerts(status?: "open" | "acknowledged" | "resolved"): Promise<WatchdogAlert[]>;
+
+  /** Insights and recommendations from the Analyst agent. */
+  getAnalystInsights(filters?: { priority?: "high" | "medium" | "low"; status?: string; limit?: number }): Promise<AnalystInsight[]>;
+
+  /** Media actions proposed by the Operator agent awaiting human approval. */
+  getOperatorPendingApprovals(): Promise<OperatorPendingApproval[]>;
+
+  /**
+   * Trigger a run of a specific autonomous agent.
+   * Requires PAID_MEDIA_AGENT_URL env var to be set.
+   * Returns the job ID or a "pending approval" message.
+   */
+  triggerAgentRun(agent: "watchdog" | "analyst" | "operator", reason: string): Promise<{ triggered: boolean; job_id?: string; message: string }>;
 }
