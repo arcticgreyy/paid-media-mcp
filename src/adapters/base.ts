@@ -229,4 +229,149 @@ export interface PaidMediaAdapter {
     amount_usd: number,
     rationale: string
   ): Promise<object>;
+
+  // ── Reporting Views (06_reporting.sql) ───────────────────────────────────
+  // These query the pre-built BigQuery views that auto-reference the latest
+  // completed attribution run. All require BigQuery mode.
+  // FileAdapter stubs return [] / null with a clear error message.
+
+  /**
+   * Campaign performance: total spend + MTA attribution side by side.
+   * Sources: v_campaign_performance — joins platform_daily_spend + attribution_channel_summary.
+   * Returns: platform_roas, attributed_roas, margin_roi, attributed_cpa, pipeline_value per campaign.
+   */
+  getCampaignPerformanceReport(filters?: {
+    platform?: string;
+    team_id?: string;
+    funnel_stage?: string;
+    status?: string;
+    date_from?: string;
+    date_to?: string;
+  }): Promise<object[]>;
+
+  /**
+   * Budget pacing: expected vs actual spend, projected total, and pacing status label.
+   * Sources: v_pacing_status — computes required_daily_spend and projected_total_spend.
+   * Pacing status values: "overpacing" (>110%) | "underpacing" (<90%) | "on_pace" | "no_budget_data".
+   */
+  getPacingReport(filters?: {
+    platform?: string;
+    team_id?: string;
+    pacing_status?: "overpacing" | "underpacing" | "on_pace" | "no_budget_data";
+    funnel_stage?: string;
+  }): Promise<object[]>;
+
+  /**
+   * ROAS comparison: platform-reported vs MTA attributed vs margin ROI per channel.
+   * Sources: v_roas_comparison — highlights platform over-counting (platform_overcount_pct).
+   * Use to quantify the gap between what platforms claim and what attribution shows.
+   */
+  getRoasComparison(filters?: {
+    platform?: string;
+    channel?: string;
+    conversion_type?: string;
+  }): Promise<object[]>;
+
+  /**
+   * Cross-channel efficiency: attributed CPA, ROAS, pipeline share, and spend vs pipeline gap.
+   * Sources: v_channel_efficiency — uses window functions to compute share_pct across channels.
+   * Use for budget allocation decisions: which channels punch above their spend weight?
+   */
+  getChannelEfficiency(): Promise<object[]>;
+
+  /**
+   * Ad/creative performance with attribution credit at the creative level.
+   * Sources: v_ad_performance — joins platform_daily_spend_ad + attribution_results by ad_id.
+   * Returns thumbstop_rate, frequency, attributed_cpa, attributed_roas per creative.
+   */
+  getAdPerformance(filters?: {
+    campaign_id?: string;
+    platform?: string;
+    creative_format?: string;
+    min_spend?: number;
+  }): Promise<object[]>;
+
+  /**
+   * Keyword performance: spend, quality scores, and impression share metrics.
+   * Sources: v_keyword_performance — includes IS_lost_budget, avg_search_impression_share.
+   * Excludes negative keywords. Use low_quality_score filter to surface optimization opportunities.
+   */
+  getKeywordPerformance(filters?: {
+    campaign_id?: string;
+    platform?: string;
+    min_spend?: number;
+    low_quality_score?: boolean;
+    lost_is_budget?: boolean;
+  }): Promise<object[]>;
+
+  /**
+   * Daily performance time series with optional week/month aggregation.
+   * Sources: v_daily_performance — includes day_of_week, week_start, month_start for grouping.
+   * Use group_by to aggregate into weekly or monthly buckets for trend analysis.
+   */
+  getDailyPerformance(filters?: {
+    campaign_id?: string;
+    platform?: string;
+    team_id?: string;
+    date_from?: string;
+    date_to?: string;
+    group_by?: "day" | "week" | "month";
+  }): Promise<object[]>;
+
+  // ── Account-Based Analytics (07_account_analytics.sql) ───────────────────
+  // B2B dark funnel visibility — de-anonymized company sessions, engagement
+  // scoring, and target account tracking. All require BigQuery mode.
+
+  /**
+   * Enriched firmographic profile for a company domain.
+   * Sources: company_profiles — industry, size, technologies, account_tier, icp_score, CRM stage.
+   * Returns null if the domain has never been resolved or is not in the database.
+   */
+  getCompanyProfile(company_domain: string): Promise<object | null>;
+
+  /**
+   * Target account funnel ranked by composite priority score.
+   * Sources: v_target_account_funnel — pipeline stage + intent + recency + page visits + paid exposure.
+   * Use intent_spiking filter to surface accounts with sudden engagement increases.
+   */
+  getTargetAccountFunnel(filters?: {
+    account_tier?: "tier_1" | "tier_2" | "tier_3";
+    crm_pipeline_stage?: string;
+    intent_spiking?: boolean;
+    is_suppressed_tofu?: boolean;
+    min_sessions_30d?: number;
+    limit?: number;
+  }): Promise<object[]>;
+
+  /**
+   * De-anonymized web sessions for a specific company over a lookback window.
+   * Sources: company_sessions — channel, UTM, page flags, paid touchpoint attribution.
+   * Note: no raw IP is stored; sessions are resolved via ip_resolution_cache.
+   */
+  getCompanySessions(company_domain: string, lookback_days?: number): Promise<object[]>;
+
+  /**
+   * Rolling engagement summary for a company: intent score, recency, depth, content.
+   * Sources: company_engagement — pre-aggregated by period_type (rolling_30d default).
+   * Intent score = recency (50%) + depth (30%) + content (20%).
+   */
+  getCompanyEngagement(company_domain: string, period_type?: string): Promise<object | null>;
+
+  /**
+   * Dark funnel coverage: classify target accounts as dark/lapsed/visible.
+   * Sources: v_dark_funnel_coverage — "dark" = never seen, "lapsed" = >90d ago, "visible" = recent.
+   * Use to identify which in-pipeline accounts have zero web presence to trigger outbound.
+   */
+  getDarkFunnelCoverage(filters?: {
+    account_tier?: "tier_1" | "tier_2" | "tier_3";
+    web_presence_status?: "dark" | "lapsed" | "visible";
+    crm_pipeline_stage?: string;
+  }): Promise<object[]>;
+
+  /**
+   * Daily target account activity snapshot history for a company.
+   * Sources: target_account_activity — web sessions (today/7d/30d/90d), paid touchpoints, intent_spiking.
+   * Use to build a longitudinal engagement chart for a specific account.
+   */
+  getTargetAccountActivity(company_domain: string, lookback_days?: number): Promise<object[]>;
 }

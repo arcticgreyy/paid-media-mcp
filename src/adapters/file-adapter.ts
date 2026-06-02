@@ -431,6 +431,79 @@ export class FileAdapter implements PaidMediaAdapter {
     return null;
   }
 
+  // ── Reporting Views ───────────────────────────────────────────────────────
+  // All reporting view methods require BigQuery mode. In file mode they return
+  // empty results and log a clear message. Enable by setting BIGQUERY_PROJECT_ID.
+
+  private _bqRequired(method: string): never[] {
+    console.error(`[FileAdapter] ${method} requires BigQuery mode. Set BIGQUERY_PROJECT_ID to enable.`);
+    return [];
+  }
+
+  async getCampaignPerformanceReport(_filters?: {
+    platform?: string; team_id?: string; funnel_stage?: string;
+    status?: string; date_from?: string; date_to?: string;
+  }): Promise<object[]> { return this._bqRequired("getCampaignPerformanceReport"); }
+
+  async getPacingReport(_filters?: {
+    platform?: string; team_id?: string;
+    pacing_status?: "overpacing" | "underpacing" | "on_pace" | "no_budget_data";
+    funnel_stage?: string;
+  }): Promise<object[]> { return this._bqRequired("getPacingReport"); }
+
+  async getRoasComparison(_filters?: {
+    platform?: string; channel?: string; conversion_type?: string;
+  }): Promise<object[]> { return this._bqRequired("getRoasComparison"); }
+
+  async getChannelEfficiency(): Promise<object[]> { return this._bqRequired("getChannelEfficiency"); }
+
+  async getAdPerformance(_filters?: {
+    campaign_id?: string; platform?: string; creative_format?: string; min_spend?: number;
+  }): Promise<object[]> { return this._bqRequired("getAdPerformance"); }
+
+  async getKeywordPerformance(_filters?: {
+    campaign_id?: string; platform?: string; min_spend?: number;
+    low_quality_score?: boolean; lost_is_budget?: boolean;
+  }): Promise<object[]> { return this._bqRequired("getKeywordPerformance"); }
+
+  async getDailyPerformance(_filters?: {
+    campaign_id?: string; platform?: string; team_id?: string;
+    date_from?: string; date_to?: string; group_by?: "day" | "week" | "month";
+  }): Promise<object[]> { return this._bqRequired("getDailyPerformance"); }
+
+  // ── Account-Based Analytics ───────────────────────────────────────────────
+  // All account analytics methods require BigQuery mode.
+
+  async getCompanyProfile(_company_domain: string): Promise<object | null> {
+    console.error("[FileAdapter] getCompanyProfile requires BigQuery mode. Set BIGQUERY_PROJECT_ID to enable.");
+    return null;
+  }
+
+  async getTargetAccountFunnel(_filters?: {
+    account_tier?: "tier_1" | "tier_2" | "tier_3"; crm_pipeline_stage?: string;
+    intent_spiking?: boolean; is_suppressed_tofu?: boolean;
+    min_sessions_30d?: number; limit?: number;
+  }): Promise<object[]> { return this._bqRequired("getTargetAccountFunnel"); }
+
+  async getCompanySessions(_company_domain: string, _lookback_days?: number): Promise<object[]> {
+    return this._bqRequired("getCompanySessions");
+  }
+
+  async getCompanyEngagement(_company_domain: string, _period_type?: string): Promise<object | null> {
+    console.error("[FileAdapter] getCompanyEngagement requires BigQuery mode. Set BIGQUERY_PROJECT_ID to enable.");
+    return null;
+  }
+
+  async getDarkFunnelCoverage(_filters?: {
+    account_tier?: "tier_1" | "tier_2" | "tier_3";
+    web_presence_status?: "dark" | "lapsed" | "visible";
+    crm_pipeline_stage?: string;
+  }): Promise<object[]> { return this._bqRequired("getDarkFunnelCoverage"); }
+
+  async getTargetAccountActivity(_company_domain: string, _lookback_days?: number): Promise<object[]> {
+    return this._bqRequired("getTargetAccountActivity");
+  }
+
   // ── Interactive Media Actions ─────────────────────────────────────────────
 
   async pushAudienceSuppression(

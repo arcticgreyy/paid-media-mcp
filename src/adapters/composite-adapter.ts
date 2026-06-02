@@ -86,6 +86,18 @@ export interface CompositeAdapterConfig {
   measurement?: PaidMediaAdapter;
   /** Adapter for getPlatformsConfig */
   platforms?: PaidMediaAdapter;
+  /**
+   * Adapter for reporting view methods: getCampaignPerformanceReport, getPacingReport,
+   * getRoasComparison, getChannelEfficiency, getAdPerformance, getKeywordPerformance,
+   * getDailyPerformance. Requires BigQuery — defaults to the primary adapter.
+   */
+  analytics_reporting?: PaidMediaAdapter;
+  /**
+   * Adapter for account-based analytics: getCompanyProfile, getTargetAccountFunnel,
+   * getCompanySessions, getCompanyEngagement, getDarkFunnelCoverage, getTargetAccountActivity.
+   * Requires BigQuery — defaults to the primary adapter.
+   */
+  account_analytics?: PaidMediaAdapter;
 }
 
 export class CompositeAdapter implements PaidMediaAdapter {
@@ -228,6 +240,51 @@ export class CompositeAdapter implements PaidMediaAdapter {
   queryAccountJourney(domain: string, days: number, type?: string) { return this.cfg.default.queryAccountJourney(domain, days, type); }
   getSignalCaptureRates(hours: number, platform?: string) { return this.cfg.default.getSignalCaptureRates(hours, platform); }
   getCrmNullFieldStats(hours: number) { return this.cfg.default.getCrmNullFieldStats(hours); }
+
+  // ── Reporting Views ───────────────────────────────────────────────────────
+
+  getCampaignPerformanceReport(filters?: Parameters<PaidMediaAdapter["getCampaignPerformanceReport"]>[0]) {
+    return (this.cfg.analytics_reporting ?? this.cfg.default).getCampaignPerformanceReport(filters);
+  }
+  getPacingReport(filters?: Parameters<PaidMediaAdapter["getPacingReport"]>[0]) {
+    return (this.cfg.analytics_reporting ?? this.cfg.default).getPacingReport(filters);
+  }
+  getRoasComparison(filters?: Parameters<PaidMediaAdapter["getRoasComparison"]>[0]) {
+    return (this.cfg.analytics_reporting ?? this.cfg.default).getRoasComparison(filters);
+  }
+  getChannelEfficiency() {
+    return (this.cfg.analytics_reporting ?? this.cfg.default).getChannelEfficiency();
+  }
+  getAdPerformance(filters?: Parameters<PaidMediaAdapter["getAdPerformance"]>[0]) {
+    return (this.cfg.analytics_reporting ?? this.cfg.default).getAdPerformance(filters);
+  }
+  getKeywordPerformance(filters?: Parameters<PaidMediaAdapter["getKeywordPerformance"]>[0]) {
+    return (this.cfg.analytics_reporting ?? this.cfg.default).getKeywordPerformance(filters);
+  }
+  getDailyPerformance(filters?: Parameters<PaidMediaAdapter["getDailyPerformance"]>[0]) {
+    return (this.cfg.analytics_reporting ?? this.cfg.default).getDailyPerformance(filters);
+  }
+
+  // ── Account-Based Analytics ───────────────────────────────────────────────
+
+  getCompanyProfile(company_domain: string) {
+    return (this.cfg.account_analytics ?? this.cfg.default).getCompanyProfile(company_domain);
+  }
+  getTargetAccountFunnel(filters?: Parameters<PaidMediaAdapter["getTargetAccountFunnel"]>[0]) {
+    return (this.cfg.account_analytics ?? this.cfg.default).getTargetAccountFunnel(filters);
+  }
+  getCompanySessions(company_domain: string, lookback_days?: number) {
+    return (this.cfg.account_analytics ?? this.cfg.default).getCompanySessions(company_domain, lookback_days);
+  }
+  getCompanyEngagement(company_domain: string, period_type?: string) {
+    return (this.cfg.account_analytics ?? this.cfg.default).getCompanyEngagement(company_domain, period_type);
+  }
+  getDarkFunnelCoverage(filters?: Parameters<PaidMediaAdapter["getDarkFunnelCoverage"]>[0]) {
+    return (this.cfg.account_analytics ?? this.cfg.default).getDarkFunnelCoverage(filters);
+  }
+  getTargetAccountActivity(company_domain: string, lookback_days?: number) {
+    return (this.cfg.account_analytics ?? this.cfg.default).getTargetAccountActivity(company_domain, lookback_days);
+  }
 
   // ── Interactive Media Actions ─────────────────────────────────────────────
   pushAudienceSuppression(platform: string, adv: string, list: string, domains: string[], rationale: string) {

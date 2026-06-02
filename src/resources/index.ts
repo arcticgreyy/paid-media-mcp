@@ -331,6 +331,165 @@ export const registerResources = (adapter: PaidMediaAdapter) => [
     },
   },
 
+  // ── Reporting schema resources ────────────────────────────────────────────
+
+  {
+    uri: "paid-media://schema/reporting",
+    name: "Reporting Views Schema Reference",
+    description:
+      "The paid-media-schema reporting layer view schemas (06_reporting.sql): " +
+      "v_campaign_performance, v_pacing_status, v_roas_comparison, v_channel_efficiency, " +
+      "v_ad_performance, v_keyword_performance, v_daily_performance. " +
+      "Read this before calling any get_*_report or get_*_performance MCP tools to understand " +
+      "what columns are returned and how the views join underlying tables.",
+    mimeType: "text/plain",
+    handler: async () => [
+      "# Reporting Views Schema Reference",
+      "Source: paid-media-schema/bigquery/06_reporting.sql",
+      "All views auto-reference the latest completed attribution run (no run_id filtering needed).",
+      "",
+      "## v_campaign_performance  →  get_campaign_performance_report",
+      "Joins: platform_campaigns + platform_daily_spend + attribution_channel_summary",
+      "| Column | Description |",
+      "|--------|-------------|",
+      "| campaign_id, campaign_name, platform, team_id, funnel_stage | Campaign identity |",
+      "| total_spend NUMERIC | Total spend in the aggregation window |",
+      "| total_impressions, total_clicks, total_conversions | Volume metrics |",
+      "| platform_roas NUMERIC | Revenue / spend as reported by the platform |",
+      "| attributed_conversions, attributed_value NUMERIC | From MTA model |",
+      "| attributed_roas NUMERIC | attributed_value / total_spend (MTA) |",
+      "| margin_roi NUMERIC | Revenue × margin_pct / spend (from platform_data JSON) |",
+      "| attributed_cpa NUMERIC | total_spend / attributed_conversions |",
+      "| pipeline_value NUMERIC | Total deal value from attribution_results |",
+      "| platform_overcount_pct FLOAT64 | (platform_roas - attributed_roas) / attributed_roas |",
+      "",
+      "## v_pacing_status  →  get_pacing_report",
+      "Joins: platform_campaigns + platform_daily_spend",
+      "| Column | Description |",
+      "|--------|-------------|",
+      "| campaign_id, platform, team_id, funnel_stage | Identity |",
+      "| budget_amount, budget_type | Campaign budget config |",
+      "| days_elapsed, days_remaining, days_total | Timeline |",
+      "| expected_spend NUMERIC | budget × (days_elapsed / days_total) |",
+      "| actual_spend NUMERIC | Sum of spend so far |",
+      "| pacing_variance_pct FLOAT64 | (actual - expected) / expected |",
+      "| required_daily_spend NUMERIC | Remaining budget / days remaining |",
+      "| projected_total_spend NUMERIC | actual × (days_total / days_elapsed) |",
+      "| pacing_status STRING | overpacing >110% | underpacing <90% | on_pace | no_budget_data |",
+      "",
+      "## v_roas_comparison  →  get_roas_comparison",
+      "Joins: attribution_channel_summary + platform_daily_spend aggregated by channel",
+      "| Column | Description |",
+      "|--------|-------------|",
+      "| platform, channel, conversion_type | Breakdown keys |",
+      "| total_spend NUMERIC | Blended spend across dates |",
+      "| platform_roas NUMERIC | Weighted avg of platform-reported ROAS |",
+      "| attributed_roas NUMERIC | MTA model ROAS (attributed_value / spend) |",
+      "| margin_roi NUMERIC | Gross margin adjusted return |",
+      "| platform_overcount_pct FLOAT64 | How much platform over-claims vs MTA |",
+      "",
+      "## v_channel_efficiency  →  get_channel_efficiency",
+      "Computes share metrics across all channels using window functions",
+      "| Column | Description |",
+      "|--------|-------------|",
+      "| channel, platform | Breakdown |",
+      "| total_spend, attributed_cpa, attributed_roas NUMERIC | Efficiency |",
+      "| pipeline_share_pct FLOAT64 | % of total pipeline driven by this channel |",
+      "| spend_share_pct FLOAT64 | % of total spend consumed by this channel |",
+      "| pipeline_vs_spend_gap_pct FLOAT64 | pipeline_share - spend_share (positive = efficient) |",
+      "",
+      "## v_ad_performance  →  get_ad_performance",
+      "Joins: platform_daily_spend_ad + attribution_results by ad_id",
+      "| Column | Description |",
+      "|--------|-------------|",
+      "| ad_id, ad_name, campaign_id, platform, creative_format | Identity |",
+      "| total_spend NUMERIC, total_impressions, total_clicks | Volume |",
+      "| thumbstop_rate FLOAT64 | 3s_video_views / impressions |",
+      "| frequency FLOAT64 | impressions / reach |",
+      "| attributed_cpa, attributed_roas NUMERIC | MTA model credit |",
+      "",
+      "## v_keyword_performance  →  get_keyword_performance",
+      "Joins: platform_keywords + platform_daily_spend_keyword (excludes negative keywords)",
+      "| Column | Description |",
+      "|--------|-------------|",
+      "| keyword_text, match_type, campaign_id, platform | Identity |",
+      "| total_spend NUMERIC, total_impressions, total_clicks | Volume |",
+      "| quality_score INT64 | Google Ads quality score 1–10 |",
+      "| avg_search_impression_share FLOAT64 | Avg IS in date range |",
+      "| avg_is_lost_budget FLOAT64 | IS lost due to budget (>0.1 = opportunity) |",
+      "| avg_is_lost_rank FLOAT64 | IS lost due to ad rank |",
+      "",
+      "## v_daily_performance  →  get_daily_performance",
+      "Denormalized daily rows across all campaigns",
+      "| Column | Description |",
+      "|--------|-------------|",
+      "| date DATE, day_of_week, week_start, month_start | Time dimensions |",
+      "| campaign_id, platform, channel, team_id, brand | Breakdown keys |",
+      "| spend, impressions, clicks, video_views, engagements NUMERIC/INT64 | Metrics |",
+      "| platform_conversions INT64, platform_conversion_value NUMERIC | Platform-reported conversions |",
+      "| ctr, cpc, cpm FLOAT64 | Computed rates |",
+    ].join("\n"),
+  },
+
+  {
+    uri: "paid-media://account-analytics/overview",
+    name: "Account Analytics Overview",
+    description:
+      "Summary of B2B dark funnel visibility: top target accounts by intent, dark funnel " +
+      "coverage breakdown (dark/lapsed/visible), and recent intent spikes. " +
+      "Read this at the start of any ABM or account analytics session to understand which " +
+      "accounts are heating up and which are invisible to your tracking.",
+    mimeType: "application/json",
+    handler: async () => {
+      const [funnel, darkFunnel] = await Promise.all([
+        adapter.getTargetAccountFunnel({ limit: 10, intent_spiking: undefined }).catch(() => []),
+        adapter.getDarkFunnelCoverage({}).catch(() => []),
+      ]);
+
+      const darkCount   = (darkFunnel as Record<string, unknown>[]).filter(r => r["web_presence_status"] === "dark").length;
+      const lapsedCount = (darkFunnel as Record<string, unknown>[]).filter(r => r["web_presence_status"] === "lapsed").length;
+      const visibleCount = (darkFunnel as Record<string, unknown>[]).filter(r => r["web_presence_status"] === "visible").length;
+      const intentSpikes = (funnel as Record<string, unknown>[]).filter(r => r["intent_spiking"] === true);
+
+      const payload = {
+        dark_funnel_coverage: {
+          total_target_accounts: darkFunnel.length,
+          dark:    darkCount,
+          lapsed:  lapsedCount,
+          visible: visibleCount,
+          dark_pct: darkFunnel.length > 0 ? Math.round((darkCount / darkFunnel.length) * 100) : 0,
+        },
+        intent_spikes: {
+          count: intentSpikes.length,
+          accounts: intentSpikes.slice(0, 5).map((r) => ({
+            company_domain:   r["company_domain"],
+            account_tier:     r["account_tier"],
+            sessions_today:   r["web_sessions_today"],
+            sessions_30d:     r["web_sessions_30d"],
+            intent_score:     r["intent_score"],
+            crm_stage:        r["crm_pipeline_stage"],
+          })),
+        },
+        top_priority_accounts: (funnel as Record<string, unknown>[]).slice(0, 10).map((r) => ({
+          company_domain:         r["company_domain"],
+          account_tier:           r["account_tier"],
+          funnel_priority_score:  r["funnel_priority_score"],
+          intent_score:           r["intent_score"],
+          intent_spiking:         r["intent_spiking"],
+          crm_pipeline_stage:     r["crm_pipeline_stage"],
+          sessions_30d:           r["sessions_30d"],
+          pricing_visits_30d:     r["pricing_visits_30d"],
+          paid_touchpoints_30d:   r["paid_touchpoints_30d"],
+        })),
+        _note: funnel.length === 0
+          ? "No data available — BigQuery mode required and at least one enrichment run needed."
+          : "Data from v_target_account_funnel and v_dark_funnel_coverage.",
+      };
+
+      return JSON.stringify(payload, null, 2);
+    },
+  },
+
   // ── Live agent output resources ───────────────────────────────────────────
 
   {

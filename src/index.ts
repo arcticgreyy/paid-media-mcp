@@ -28,6 +28,7 @@ import { identityTools } from "./tools/identity.js";
 import { agentOutputTools } from "./tools/agent-outputs.js";
 import { analyticsTools } from "./tools/analytics.js";
 import { mediaActionTools } from "./tools/media-actions.js";
+import { accountAnalyticsTools } from "./tools/account-analytics.js";
 import { registerResources } from "./resources/index.js";
 import { prompts } from "./prompts/index.js";
 
@@ -79,6 +80,7 @@ const allTools = [
   ...agentOutputTools(adapter),
   ...analyticsTools(adapter),
   ...mediaActionTools(adapter),
+  ...accountAnalyticsTools(adapter),
 ];
 
 const toolMap = new Map(allTools.map((t) => [t.name, t]));
