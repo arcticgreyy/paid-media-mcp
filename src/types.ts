@@ -1,16 +1,26 @@
+/**
+ * Copyright 2026 @arcticgreyy. All rights reserved.
+ * Licensed under the Business Source License 1.1 (BSL 1.1)
+ * Persistent Attribution Required. See /LICENSE and /NOTICE for terms.
+ * Central Suite Repository: https://github.com/arcticgreyy/paid-media-suite
+ */
 // ─── Platforms ────────────────────────────────────────────────────────────────
 
 export type Platform =
   | "google_ads"
-  | "meta"
   | "dv360"
-  | "youtube"
+  | "sa360"
+  | "cm360"
+  | "meta"
   | "linkedin"
   | "tiktok"
   | "twitter_x"
   | "pinterest"
   | "snapchat"
-  | "amazon"
+  | "microsoft_ads"
+  | "amazon_ads"
+  | "reddit"
+  | "youtube"
   | "other";
 
 export type CampaignStatus = "active" | "paused" | "ended" | "draft" | "archived";
@@ -560,6 +570,131 @@ export interface PlatformConfig {
 
 export interface PlatformsConfig {
   platforms: Record<BulkUploadPlatform, PlatformConfig>;
+}
+
+// ─── Identity ─────────────────────────────────────────────────────────────────
+
+export interface IdentityNamespace {
+  namespace_id: string;
+  display_name: string;
+  category: string;
+  vendor: string | null;
+  signal_name: string;
+  url_parameter?: string;
+  cookie_name?: string;
+  platforms: string[];
+  deterministic: boolean | null;
+  pii: boolean | null;
+  lifetime_days: number | null;
+  capture_method: string | null;
+  notes: string;
+}
+
+export interface IdentityEntity {
+  entity_id: string;
+  entity_type: "person" | "account" | "household";
+  company_domain?: string;
+  company_name?: string;
+  confidence_tier: "high" | "medium" | "low";
+  signal_count: number;
+  first_seen_at: string;
+  last_seen_at: string;
+  signals: {
+    namespace_id: string;
+    identifier_value: string;
+    match_method: "deterministic" | "probabilistic" | "declarative";
+    confidence_score: number;
+    first_observed_at: string;
+    last_observed_at: string;
+  }[];
+}
+
+// ─── Attribution Results (agent output) ───────────────────────────────────────
+
+export interface AttributionChannelSummary {
+  run_id: string;
+  model_name: string;
+  period_start: string;
+  period_end: string;
+  generated_at: string;
+  channel_summary: {
+    platform: string;
+    channel: string;
+    conversion_type: string;
+    attributed_conversions: number;
+    attributed_value?: number;
+    credit_share_pct: number;
+    total_spend?: number;
+    attributed_cpa?: number;
+    attributed_roas?: number;
+  }[];
+}
+
+export interface AttributionRun {
+  run_id: string;
+  model_name: string;
+  period_start: string;
+  period_end: string;
+  paths_modeled?: number;
+  conversions_attributed?: number;
+  identity_match_rate?: number;
+  avg_path_length?: number;
+  status: "running" | "completed" | "failed" | "superseded";
+  started_at: string;
+  completed_at?: string;
+  triggered_by?: string;
+}
+
+// ─── Agent Outputs ────────────────────────────────────────────────────────────
+
+export interface WatchdogAlert {
+  alert_id: string;
+  alert_type: string;
+  severity: "info" | "warning" | "critical";
+  status: "open" | "acknowledged" | "resolved" | "suppressed";
+  affected_namespace?: string;
+  affected_platform?: string;
+  metric_name?: string;
+  metric_value?: number;
+  threshold_value?: number;
+  description: string;
+  probable_cause?: string;
+  recommended_action?: string;
+  detected_at: string;
+  resolved_at?: string;
+}
+
+export interface AnalystInsight {
+  insight_id: string;
+  insight_type: string;
+  period_start?: string;
+  period_end?: string;
+  affected_platform?: string;
+  affected_channel?: string;
+  headline: string;
+  detail?: string;
+  confidence: "high" | "medium" | "low";
+  has_recommendation: boolean;
+  recommendation?: string;
+  estimated_impact?: string;
+  priority: "high" | "medium" | "low";
+  status: "new" | "reviewed" | "actioned" | "dismissed";
+  generated_at: string;
+}
+
+export interface OperatorPendingApproval {
+  action_id: string;
+  platform: string;
+  action_type: string;
+  platform_entity_id: string;
+  campaign_id?: string;
+  summary: string;
+  rationale: string;
+  estimated_impact?: string;
+  spend_at_risk?: number;
+  change_magnitude_pct?: number;
+  proposed_at: string;
+  expires_at?: string;
 }
 
 // ─── Top-level data store ─────────────────────────────────────────────────────

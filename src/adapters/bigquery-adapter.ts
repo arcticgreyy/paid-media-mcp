@@ -1,4 +1,10 @@
 /**
+ * Copyright 2026 @arcticgreyy. All rights reserved.
+ * Licensed under the Business Source License 1.1 (BSL 1.1)
+ * Persistent Attribution Required. See /LICENSE and /NOTICE for terms.
+ * Central Suite Repository: https://github.com/arcticgreyy/paid-media-suite
+ */
+/**
  * BigQueryAdapter
  *
  * Extends FileAdapter so that:
@@ -47,13 +53,21 @@ type BigQueryClient = any;
 export interface BigQueryAdapterConfig {
   /** GCP project ID */
   projectId: string;
-  /** BigQuery dataset name */
+  /** BigQuery dataset name — must match the dataset used by paid-media-schema DDL */
   dataset: string;
-  /** Override individual table names if they differ from the defaults */
+  /** Override individual table names if they differ from paid-media-schema defaults */
   tables?: {
-    campaigns?: string;        // default: "campaigns"
-    performance?: string;      // default: "daily_performance"
-    benchmarks?: string;       // default: "benchmarks" (optional table)
+    // Platform layer (paid-media-schema: 03_platform.sql)
+    campaigns?: string;        // default: "platform_campaigns"
+    performance?: string;      // default: "platform_daily_spend"
+    benchmarks?: string;       // default: "benchmarks" (optional, not in schema DDL)
+    // Attribution layer (paid-media-schema: 04_attribution.sql)
+    attribution_results?: string;   // default: "attribution_channel_summary"
+    attribution_runs?: string;      // default: "attribution_runs"
+    // Agent output layer (paid-media-schema: 05_agent_outputs.sql)
+    watchdog_alerts?: string;       // default: "watchdog_alerts"
+    analyst_insights?: string;      // default: "analyst_insights"
+    pending_approvals?: string;     // default: "operator_pending_approvals"
   };
   /** Path to local JSON data directory for org knowledge domains */
   dataDir?: string;
@@ -67,6 +81,11 @@ import type {
   CampaignStatus,
   PerformanceRecord,
   Platform,
+  AttributionChannelSummary,
+  AttributionRun,
+  WatchdogAlert,
+  AnalystInsight,
+  OperatorPendingApproval,
 } from "../types.js";
 
 // Lazy-load @google-cloud/bigquery so the server starts even if the package
@@ -93,9 +112,14 @@ export class BigQueryAdapter extends FileAdapter {
       ...config,
       dataDir: config.dataDir ?? "./data",
       tables: {
-        campaigns: config.tables?.campaigns ?? "campaigns",
-        performance: config.tables?.performance ?? "daily_performance",
-        benchmarks: config.tables?.benchmarks ?? "benchmarks",
+        campaigns:           config.tables?.campaigns           ?? "platform_campaigns",
+        performance:         config.tables?.performance         ?? "platform_daily_spend",
+        benchmarks:          config.tables?.benchmarks          ?? "benchmarks",
+        attribution_results: config.tables?.attribution_results ?? "attribution_channel_summary",
+        attribution_runs:    config.tables?.attribution_runs    ?? "attribution_runs",
+        watchdog_alerts:     config.tables?.watchdog_alerts     ?? "watchdog_alerts",
+        analyst_insights:    config.tables?.analyst_insights    ?? "analyst_insights",
+        pending_approvals:   config.tables?.pending_approvals   ?? "operator_pending_approvals",
       },
     };
   }
@@ -107,7 +131,7 @@ export class BigQueryAdapter extends FileAdapter {
     return this.bq;
   }
 
-  private table(name: keyof Required<NonNullable<BigQueryAdapterConfig["tables"]>>) {
+  private table(name: keyof Required<NonNullable<BigQueryAdapterConfig["tables"]>>): string {
     return `\`${this.config.projectId}.${this.config.dataset}.${this.config.tables[name]}\``;
   }
 
@@ -117,17 +141,18 @@ export class BigQueryAdapter extends FileAdapter {
     const bq = await this.client();
     const conditions: string[] = [];
 
-    if (filters.team_id)        conditions.push(`team_id = '${filters.team_id}'`);
-    if (filters.account_id)     conditions.push(`account_id = '${filters.account_id}'`);
-    if (filters.platform)       conditions.push(`platform = '${filters.platform}'`);
-    if (filters.status)         conditions.push(`status = '${filters.status}'`);
-    if (filters.objective)      conditions.push(`objective = '${filters.objective}'`);
-    if (filters.funnel_stage)   conditions.push(`funnel_stage = '${filters.funnel_stage}'`);
+    // Column names match paid-media-schema 03_platform.sql: platform_campaigns
+    if (filters.team_id)          conditions.push(`team_id = '${filters.team_id}'`);
+    if (filters.account_id)       conditions.push(`platform_account_id = '${filters.account_id}'`);
+    if (filters.platform)         conditions.push(`platform = '${filters.platform}'`);
+    if (filters.status)           conditions.push(`status = '${filters.status}'`);
+    if (filters.objective)        conditions.push(`objective = '${filters.objective}'`);
+    if (filters.funnel_stage)     conditions.push(`funnel_stage = '${filters.funnel_stage}'`);
     if (filters.start_date_after) conditions.push(`start_date >= '${filters.start_date_after}'`);
     if (filters.end_date_before)  conditions.push(`end_date <= '${filters.end_date_before}'`);
 
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-    const query = `SELECT * FROM ${this.table("campaigns")} ${where} ORDER BY name`;
+    const query = `SELECT * FROM ${this.table("campaigns")} ${where} ORDER BY campaign_name`;
 
     const [rows] = await bq.query(query);
     return rows.map(rowToCampaign);
@@ -148,35 +173,44 @@ export class BigQueryAdapter extends FileAdapter {
     const bq = await this.client();
     const conditions: string[] = [];
 
+    // Column names match paid-media-schema 03_platform.sql: platform_daily_spend
     if (filters.campaign_id) {
       conditions.push(`p.campaign_id = '${filters.campaign_id}'`);
     } else if (filters.team_id) {
       conditions.push(`c.team_id = '${filters.team_id}'`);
     } else if (filters.platform) {
-      conditions.push(`c.platform = '${filters.platform}'`);
+      conditions.push(`p.platform = '${filters.platform}'`);
     }
 
     if (filters.date_from) conditions.push(`p.date >= '${filters.date_from}'`);
     if (filters.date_to)   conditions.push(`p.date <= '${filters.date_to}'`);
 
-    const needsJoin = filters.team_id || filters.platform;
+    const needsJoin = !!(filters.team_id);
     const from = needsJoin
-      ? `${this.table("performance")} p JOIN ${this.table("campaigns")} c ON p.campaign_id = c.id`
+      ? `${this.table("performance")} p JOIN ${this.table("campaigns")} c ON p.campaign_id = c.campaign_id`
       : `${this.table("performance")} p`;
 
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
     const query = `
       SELECT
-        FORMAT_DATE('%Y-%m-%d', p.date) AS date,
+        FORMAT_DATE('%Y-%m-%d', p.date)   AS date,
         p.campaign_id,
         p.impressions,
         p.clicks,
         p.spend,
-        p.conversions,
-        p.conversion_value
+        p.platform_conversions             AS conversions,
+        p.platform_conversion_value        AS conversion_value,
+        p.reach,
+        p.video_views,
+        p.ctr,
+        p.cpc,
+        p.cpm,
+        p.platform_cpa                     AS cpa,
+        p.platform_roas                    AS roas
       FROM ${from}
       ${where}
       ORDER BY p.date DESC
+      LIMIT 10000
     `;
 
     const [rows] = await bq.query(query);
@@ -184,11 +218,18 @@ export class BigQueryAdapter extends FileAdapter {
       date: String(r.date),
       campaign_id: String(r.campaign_id),
       metrics: {
-        impressions: Number(r.impressions ?? 0),
-        clicks: Number(r.clicks ?? 0),
-        spend: Number(r.spend ?? 0),
-        conversions: Number(r.conversions ?? 0),
+        impressions:      Number(r.impressions      ?? 0),
+        clicks:           Number(r.clicks           ?? 0),
+        spend:            Number(r.spend            ?? 0),
+        conversions:      Number(r.conversions      ?? 0),
         conversion_value: Number(r.conversion_value ?? 0),
+        reach:            r.reach      != null ? Number(r.reach)      : undefined,
+        video_views:      r.video_views != null ? Number(r.video_views) : undefined,
+        ctr:              r.ctr  != null ? Number(r.ctr)  : undefined,
+        cpc:              r.cpc  != null ? Number(r.cpc)  : undefined,
+        cpm:              r.cpm  != null ? Number(r.cpm)  : undefined,
+        cpa:              r.cpa  != null ? Number(r.cpa)  : undefined,
+        roas:             r.roas != null ? Number(r.roas) : undefined,
       },
     } satisfies PerformanceRecord));
   }
@@ -220,29 +261,737 @@ export class BigQueryAdapter extends FileAdapter {
       return super.getBenchmarks(platform, objective);
     }
   }
+
+  // ── Attribution Results ─────────────────────────────────────────────────────
+
+  override async getLatestAttributionResults(conversion_type?: string): Promise<AttributionChannelSummary | null> {
+    const bq = await this.client();
+    try {
+      // Get the most recent completed run
+      const [runRows] = await bq.query(`
+        SELECT run_id, model_name, period_start, period_end, completed_at
+        FROM ${this.table("attribution_runs")}
+        WHERE status = 'completed'
+        ORDER BY completed_at DESC
+        LIMIT 1
+      `);
+      if (!runRows.length) return null;
+      const run = runRows[0] as Record<string, unknown>;
+
+      const convFilter = conversion_type ? `AND conversion_type = '${conversion_type}'` : "";
+      const [rows] = await bq.query(`
+        SELECT
+          platform,
+          channel,
+          conversion_type,
+          attributed_conversions,
+          attributed_value,
+          credit_share_pct,
+          total_spend,
+          attributed_cpa,
+          attributed_roas
+        FROM ${this.table("attribution_results")}
+        WHERE run_id = '${String(run.run_id)}'
+        ${convFilter}
+        ORDER BY attributed_conversions DESC
+      `);
+
+      return {
+        run_id:       String(run.run_id),
+        model_name:   String(run.model_name),
+        period_start: String(run.period_start),
+        period_end:   String(run.period_end),
+        generated_at: String(run.completed_at),
+        channel_summary: rows.map((r: Record<string, unknown>) => ({
+          platform:               String(r.platform),
+          channel:                String(r.channel),
+          conversion_type:        String(r.conversion_type),
+          attributed_conversions: Number(r.attributed_conversions),
+          attributed_value:       r.attributed_value != null ? Number(r.attributed_value) : undefined,
+          credit_share_pct:       Number(r.credit_share_pct),
+          total_spend:            r.total_spend != null ? Number(r.total_spend) : undefined,
+          attributed_cpa:         r.attributed_cpa != null ? Number(r.attributed_cpa) : undefined,
+          attributed_roas:        r.attributed_roas != null ? Number(r.attributed_roas) : undefined,
+        })),
+      };
+    } catch { return null; }
+  }
+
+  override async getAttributionRuns(limit = 10): Promise<AttributionRun[]> {
+    const bq = await this.client();
+    try {
+      const [rows] = await bq.query(`
+        SELECT
+          run_id, model_name, period_start, period_end,
+          paths_modeled, conversions_attributed, identity_match_rate,
+          avg_path_length, status, started_at, completed_at, triggered_by
+        FROM ${this.table("attribution_runs")}
+        ORDER BY started_at DESC
+        LIMIT ${limit}
+      `);
+      return rows.map((r: Record<string, unknown>) => ({
+        run_id:                String(r.run_id),
+        model_name:            String(r.model_name),
+        period_start:          String(r.period_start),
+        period_end:            String(r.period_end),
+        paths_modeled:         r.paths_modeled != null ? Number(r.paths_modeled) : undefined,
+        conversions_attributed: r.conversions_attributed != null ? Number(r.conversions_attributed) : undefined,
+        identity_match_rate:   r.identity_match_rate != null ? Number(r.identity_match_rate) : undefined,
+        avg_path_length:       r.avg_path_length != null ? Number(r.avg_path_length) : undefined,
+        status:                String(r.status) as AttributionRun["status"],
+        started_at:            String(r.started_at),
+        completed_at:          r.completed_at ? String(r.completed_at) : undefined,
+        triggered_by:          r.triggered_by ? String(r.triggered_by) : undefined,
+      }));
+    } catch { return []; }
+  }
+
+  // ── Agent Outputs ───────────────────────────────────────────────────────────
+
+  override async getWatchdogAlerts(status?: "open" | "acknowledged" | "resolved"): Promise<WatchdogAlert[]> {
+    const bq = await this.client();
+    try {
+      const where = status ? `WHERE status = '${status}'` : `WHERE status IN ('open', 'acknowledged')`;
+      const [rows] = await bq.query(`
+        SELECT *
+        FROM ${this.table("watchdog_alerts")}
+        ${where}
+        ORDER BY detected_at DESC
+        LIMIT 50
+      `);
+      return rows.map((r: Record<string, unknown>) => ({
+        alert_id:           String(r.alert_id),
+        alert_type:         String(r.alert_type),
+        severity:           String(r.severity) as WatchdogAlert["severity"],
+        status:             String(r.status) as WatchdogAlert["status"],
+        affected_namespace: r.affected_namespace ? String(r.affected_namespace) : undefined,
+        affected_platform:  r.affected_platform ? String(r.affected_platform) : undefined,
+        metric_name:        r.metric_name ? String(r.metric_name) : undefined,
+        metric_value:       r.metric_value != null ? Number(r.metric_value) : undefined,
+        threshold_value:    r.threshold_value != null ? Number(r.threshold_value) : undefined,
+        description:        String(r.description),
+        probable_cause:     r.probable_cause ? String(r.probable_cause) : undefined,
+        recommended_action: r.recommended_action ? String(r.recommended_action) : undefined,
+        detected_at:        String(r.detected_at),
+        resolved_at:        r.resolved_at ? String(r.resolved_at) : undefined,
+      }));
+    } catch { return []; }
+  }
+
+  override async getAnalystInsights(
+    filters: { priority?: "high" | "medium" | "low"; status?: string; limit?: number } = {}
+  ): Promise<AnalystInsight[]> {
+    const bq = await this.client();
+    try {
+      const conditions: string[] = [];
+      if (filters.priority) conditions.push(`priority = '${filters.priority}'`);
+      if (filters.status)   conditions.push(`status = '${filters.status}'`);
+      const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+      const [rows] = await bq.query(`
+        SELECT *
+        FROM ${this.table("analyst_insights")}
+        ${where}
+        ORDER BY generated_at DESC
+        LIMIT ${filters.limit ?? 20}
+      `);
+      return rows.map((r: Record<string, unknown>) => ({
+        insight_id:        String(r.insight_id),
+        insight_type:      String(r.insight_type),
+        period_start:      r.period_start ? String(r.period_start) : undefined,
+        period_end:        r.period_end ? String(r.period_end) : undefined,
+        affected_platform: r.affected_platform ? String(r.affected_platform) : undefined,
+        affected_channel:  r.affected_channel ? String(r.affected_channel) : undefined,
+        headline:          String(r.headline),
+        detail:            r.detail ? String(r.detail) : undefined,
+        confidence:        String(r.confidence) as AnalystInsight["confidence"],
+        has_recommendation: Boolean(r.has_recommendation),
+        recommendation:    r.recommendation ? String(r.recommendation) : undefined,
+        estimated_impact:  r.estimated_impact ? String(r.estimated_impact) : undefined,
+        priority:          String(r.priority) as AnalystInsight["priority"],
+        status:            String(r.status) as AnalystInsight["status"],
+        generated_at:      String(r.generated_at),
+      }));
+    } catch { return []; }
+  }
+
+  override async getOperatorPendingApprovals(): Promise<OperatorPendingApproval[]> {
+    const bq = await this.client();
+    try {
+      const [rows] = await bq.query(`
+        SELECT *
+        FROM ${this.table("pending_approvals")}
+        ORDER BY proposed_at ASC
+      `);
+      return rows.map((r: Record<string, unknown>) => ({
+        action_id:            String(r.action_id),
+        platform:             String(r.platform),
+        action_type:          String(r.action_type),
+        platform_entity_id:   String(r.platform_entity_id),
+        campaign_id:          r.campaign_id ? String(r.campaign_id) : undefined,
+        summary:              String(r.summary),
+        rationale:            String(r.rationale),
+        estimated_impact:     r.estimated_impact ? String(r.estimated_impact) : undefined,
+        spend_at_risk:        r.spend_at_risk != null ? Number(r.spend_at_risk) : undefined,
+        change_magnitude_pct: r.change_magnitude_pct != null ? Number(r.change_magnitude_pct) : undefined,
+        proposed_at:          String(r.proposed_at),
+        expires_at:           r.expires_at ? String(r.expires_at) : undefined,
+      }));
+    } catch { return []; }
+  }
+
+  // ── Analytics & Data Governance ───────────────────────────────────────────
+
+  override async queryAccountJourney(
+    account_domain: string,
+    lookback_days: number,
+    conversion_type?: string
+  ) {
+    const bq = await this.client();
+    const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
+    const convFilter = conversion_type ? `AND c.conversion_type = '${conversion_type}'` : "";
+
+    try {
+      const [touchRows] = await bq.query(`
+        WITH account_entities AS (
+          -- Find canonical entities linked to this domain
+          SELECT DISTINCT ies.entity_id
+          FROM ${ds}.identity_entity_signals ies
+          JOIN ${ds}.identity_entities e ON e.entity_id = ies.entity_id
+          WHERE (
+            e.company_domain = '${account_domain}'
+            OR ies.identifier_value = '${account_domain}'
+          )
+          AND ies.is_active = TRUE
+        )
+        SELECT
+          t.touchpoint_id,
+          t.entity_id,
+          t.touchpoint_at,
+          t.touchpoint_type,
+          t.platform,
+          t.channel,
+          t.campaign_id,
+          t.funnel_stage,
+          t.path_position,
+          t.path_total_touches,
+          r.credit_weight,
+          r.credit_conversions,
+          r.model_name
+        FROM ${ds}.touchpoint_events t
+        JOIN account_entities ae ON ae.entity_id = t.entity_id
+        LEFT JOIN ${ds}.attribution_results r ON r.touchpoint_id = t.touchpoint_id
+          AND r.run_id = (
+            SELECT run_id FROM ${ds}.attribution_runs
+            WHERE status = 'completed' ORDER BY completed_at DESC LIMIT 1
+          )
+        WHERE t.touchpoint_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL ${lookback_days} DAY)
+        ORDER BY t.touchpoint_at ASC
+        LIMIT 500
+      `);
+
+      const [convRows] = await bq.query(`
+        WITH account_entities AS (
+          SELECT DISTINCT ies.entity_id
+          FROM ${ds}.identity_entity_signals ies
+          JOIN ${ds}.identity_entities e ON e.entity_id = ies.entity_id
+          WHERE e.company_domain = '${account_domain}' AND ies.is_active = TRUE
+        )
+        SELECT
+          c.conversion_id, c.entity_id, c.converted_at,
+          c.conversion_type, c.conversion_value, c.deal_value, c.pipeline_stage
+        FROM ${ds}.conversion_events c
+        JOIN account_entities ae ON ae.entity_id = c.entity_id
+        WHERE c.converted_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL ${lookback_days} DAY)
+        ${convFilter}
+        ORDER BY c.converted_at ASC
+      `);
+
+      const entities = new Set((touchRows as Record<string, unknown>[]).map(r => String(r.entity_id)));
+      const channels = [...new Set((touchRows as Record<string, unknown>[]).map(r => String(r.channel)))];
+      const platforms = [...new Set((touchRows as Record<string, unknown>[]).map(r => String(r.platform)))];
+      const totalCredit = (touchRows as Record<string, unknown>[])
+        .reduce((sum, r) => sum + Number(r.credit_weight ?? 0), 0);
+
+      return {
+        account_domain,
+        entity_count:  entities.size,
+        touchpoints:   touchRows as object[],
+        conversions:   convRows as object[],
+        path_summary: {
+          total_touchpoints:  touchRows.length,
+          total_conversions:  convRows.length,
+          channels_touched:   channels,
+          platforms_touched:  platforms,
+          total_credit_weight: Math.round(totalCredit * 100) / 100,
+          lookback_days,
+        },
+      };
+    } catch { return null; }
+  }
+
+  override async getSignalCaptureRates(hours_back: number, platform?: string): Promise<object[]> {
+    const bq = await this.client();
+    const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
+    const pFilter = platform ? `AND platform = '${platform}'` : "";
+    try {
+      const [rows] = await bq.query(`
+        SELECT
+          namespace_id,
+          platform,
+          AVG(capture_rate_pct)                    AS avg_capture_rate_pct,
+          MIN(capture_rate_pct)                    AS min_capture_rate_pct,
+          MAX(capture_rate_pct)                    AS max_capture_rate_pct,
+          SUM(total_events)                        AS total_events,
+          COUNTIF(is_anomaly)                      AS anomaly_count,
+          MAX(logged_at)                           AS last_logged_at
+        FROM ${ds}.watchdog_capture_rate_log
+        WHERE logged_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL ${hours_back} HOUR)
+        ${pFilter}
+        GROUP BY namespace_id, platform
+        ORDER BY avg_capture_rate_pct ASC
+      `);
+      return rows as object[];
+    } catch { return []; }
+  }
+
+  override async getCrmNullFieldStats(since_hours: number) {
+    const bq = await this.client();
+    const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
+    try {
+      const [rows] = await bq.query(`
+        SELECT
+          COUNTIF(gclid IS NULL AND fbclid IS NULL AND li_fat_id IS NULL
+                  AND ttclid IS NULL AND ga_client_id IS NULL) AS null_media_ids,
+          COUNTIF(utm_source IS NULL OR utm_source = '')        AS null_utm,
+          COUNT(*)                                               AS total_leads
+        FROM ${ds}.crm_leads_staging
+        WHERE created_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL ${since_hours} HOUR)
+      `);
+      if (!rows.length) return null;
+      const r = rows[0] as Record<string, unknown>;
+      const total = Number(r.total_leads ?? 0);
+      const nullCount = Number(r.null_media_ids ?? 0);
+      const nullPct = total > 0 ? Math.round((nullCount / total) * 1000) / 10 : 0;
+      return {
+        source:        "bigquery",
+        hours_sampled: since_hours,
+        total_leads:   total,
+        null_media_ids: nullCount,
+        null_pct:      nullPct,
+        threshold_pct: 5,
+        breach:        nullPct > 5 && total > 0,
+      };
+    } catch { return null; }
+  }
+
+  // ── Reporting Views (06_reporting.sql) ───────────────────────────────────
+  // These methods query the pre-built reporting views. They are NOT yet part of
+  // the PaidMediaAdapter interface — the interface will be extended in Task 31.
+  // All views reference the latest completed attribution run automatically.
+
+  /**
+   * Campaign performance: spend + MTA attribution in one row per campaign.
+   * Queries v_campaign_performance (see 06_reporting.sql).
+   */
+  async getCampaignPerformanceReport(filters: {
+    platform?: string;
+    team_id?: string;
+    funnel_stage?: string;
+    status?: string;
+    date_from?: string;
+    date_to?: string;
+  } = {}): Promise<object[]> {
+    const bq = await this.client();
+    const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
+    const conditions: string[] = [];
+    if (filters.platform)     conditions.push(`platform = '${filters.platform}'`);
+    if (filters.team_id)      conditions.push(`team_id = '${filters.team_id}'`);
+    if (filters.funnel_stage) conditions.push(`funnel_stage = '${filters.funnel_stage}'`);
+    if (filters.status)       conditions.push(`campaign_status = '${filters.status}'`);
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    try {
+      const [rows] = await bq.query(`
+        SELECT *
+        FROM ${ds}.v_campaign_performance
+        ${where}
+        ORDER BY total_spend DESC
+        LIMIT 500
+      `);
+      return rows as object[];
+    } catch { return []; }
+  }
+
+  /**
+   * Pacing status for all active / paused campaigns that have started flying.
+   * Queries v_pacing_status (see 06_reporting.sql).
+   */
+  async getPacingReport(filters: {
+    platform?: string;
+    team_id?: string;
+    pacing_status?: "overpacing" | "underpacing" | "on_pace" | "no_budget_data";
+    funnel_stage?: string;
+  } = {}): Promise<object[]> {
+    const bq = await this.client();
+    const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
+    const conditions: string[] = [];
+    if (filters.platform)      conditions.push(`platform = '${filters.platform}'`);
+    if (filters.team_id)       conditions.push(`team_id = '${filters.team_id}'`);
+    if (filters.pacing_status) conditions.push(`pacing_status = '${filters.pacing_status}'`);
+    if (filters.funnel_stage)  conditions.push(`funnel_stage = '${filters.funnel_stage}'`);
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    try {
+      const [rows] = await bq.query(`
+        SELECT *
+        FROM ${ds}.v_pacing_status
+        ${where}
+        ORDER BY
+          CASE pacing_status
+            WHEN 'overpacing'   THEN 1
+            WHEN 'underpacing'  THEN 2
+            WHEN 'on_pace'      THEN 3
+            ELSE 4
+          END,
+          ABS(COALESCE(pacing_variance_amount, 0)) DESC
+        LIMIT 500
+      `);
+      return rows as object[];
+    } catch { return []; }
+  }
+
+  /**
+   * ROAS comparison: platform-reported vs MTA attributed vs margin ROI per channel.
+   * Queries v_roas_comparison (see 06_reporting.sql).
+   */
+  async getRoasComparison(filters: {
+    platform?: string;
+    channel?: string;
+    conversion_type?: string;
+  } = {}): Promise<object[]> {
+    const bq = await this.client();
+    const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
+    const conditions: string[] = [];
+    if (filters.platform)        conditions.push(`platform = '${filters.platform}'`);
+    if (filters.channel)         conditions.push(`channel = '${filters.channel}'`);
+    if (filters.conversion_type) conditions.push(`conversion_type = '${filters.conversion_type}'`);
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    try {
+      const [rows] = await bq.query(`
+        SELECT *
+        FROM ${ds}.v_roas_comparison
+        ${where}
+        ORDER BY total_spend DESC
+      `);
+      return rows as object[];
+    } catch { return []; }
+  }
+
+  /**
+   * Cross-channel efficiency: attributed CPA, ROAS, pipeline share, and
+   * spend vs pipeline gap per channel. Queries v_channel_efficiency.
+   */
+  async getChannelEfficiency(): Promise<object[]> {
+    const bq = await this.client();
+    const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
+    try {
+      const [rows] = await bq.query(`
+        SELECT *
+        FROM ${ds}.v_channel_efficiency
+        ORDER BY pipeline_share_pct DESC
+      `);
+      return rows as object[];
+    } catch { return []; }
+  }
+
+  /**
+   * Ad/creative performance with attribution.
+   * Queries v_ad_performance (see 06_reporting.sql).
+   */
+  async getAdPerformance(filters: {
+    campaign_id?: string;
+    platform?: string;
+    creative_format?: string;
+    min_spend?: number;
+  } = {}): Promise<object[]> {
+    const bq = await this.client();
+    const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
+    const conditions: string[] = [];
+    if (filters.campaign_id)     conditions.push(`campaign_id = '${filters.campaign_id}'`);
+    if (filters.platform)        conditions.push(`platform = '${filters.platform}'`);
+    if (filters.creative_format) conditions.push(`creative_format = '${filters.creative_format}'`);
+    if (filters.min_spend != null) conditions.push(`total_spend >= ${filters.min_spend}`);
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    try {
+      const [rows] = await bq.query(`
+        SELECT *
+        FROM ${ds}.v_ad_performance
+        ${where}
+        ORDER BY total_spend DESC
+        LIMIT 500
+      `);
+      return rows as object[];
+    } catch { return []; }
+  }
+
+  /**
+   * Keyword performance with spend, quality scores, and impression share.
+   * Queries v_keyword_performance (see 06_reporting.sql).
+   */
+  async getKeywordPerformance(filters: {
+    campaign_id?: string;
+    platform?: string;
+    min_spend?: number;
+    low_quality_score?: boolean;
+    lost_is_budget?: boolean;
+  } = {}): Promise<object[]> {
+    const bq = await this.client();
+    const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
+    const conditions: string[] = [];
+    if (filters.campaign_id)   conditions.push(`campaign_id = '${filters.campaign_id}'`);
+    if (filters.platform)      conditions.push(`platform = '${filters.platform}'`);
+    if (filters.min_spend != null) conditions.push(`total_spend >= ${filters.min_spend}`);
+    if (filters.low_quality_score) conditions.push(`quality_score <= 5`);
+    if (filters.lost_is_budget)    conditions.push(`avg_is_lost_budget > 0.1`);
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    try {
+      const [rows] = await bq.query(`
+        SELECT *
+        FROM ${ds}.v_keyword_performance
+        ${where}
+        ORDER BY total_spend DESC
+        LIMIT 1000
+      `);
+      return rows as object[];
+    } catch { return []; }
+  }
+
+  /**
+   * Daily performance trend for all campaigns.
+   * Queries v_daily_performance (see 06_reporting.sql).
+   */
+  async getDailyPerformance(filters: {
+    campaign_id?: string;
+    platform?: string;
+    team_id?: string;
+    date_from?: string;
+    date_to?: string;
+    group_by?: "day" | "week" | "month";
+  } = {}): Promise<object[]> {
+    const bq = await this.client();
+    const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
+    const conditions: string[] = [];
+    if (filters.campaign_id) conditions.push(`campaign_id = '${filters.campaign_id}'`);
+    if (filters.platform)    conditions.push(`platform = '${filters.platform}'`);
+    if (filters.team_id)     conditions.push(`team_id = '${filters.team_id}'`);
+    if (filters.date_from)   conditions.push(`date >= '${filters.date_from}'`);
+    if (filters.date_to)     conditions.push(`date <= '${filters.date_to}'`);
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
+    // Optional time aggregation
+    const groupByClause = filters.group_by === "week"  ? "GROUP BY week_start, platform, channel, team_id, brand" :
+                          filters.group_by === "month" ? "GROUP BY month_start, platform, channel, team_id, brand" :
+                          "";
+    const selectClause = filters.group_by
+      ? `
+        ${filters.group_by === "week" ? "week_start AS period" : "month_start AS period"},
+        platform, channel, team_id, brand,
+        SUM(spend) AS spend, SUM(impressions) AS impressions, SUM(clicks) AS clicks,
+        SUM(video_views) AS video_views, SUM(engagements) AS engagements,
+        SUM(platform_conversions) AS platform_conversions,
+        SUM(platform_conversion_value) AS platform_conversion_value,
+        SAFE_DIVIDE(SUM(clicks), SUM(impressions)) AS ctr,
+        SAFE_DIVIDE(SUM(spend), SUM(clicks)) AS cpc,
+        SAFE_DIVIDE(SUM(spend) * 1000, SUM(impressions)) AS cpm
+      `
+      : "*";
+
+    try {
+      const [rows] = await bq.query(`
+        SELECT ${selectClause}
+        FROM ${ds}.v_daily_performance
+        ${where}
+        ${groupByClause}
+        ORDER BY ${filters.group_by === "week" ? "week_start" : filters.group_by === "month" ? "month_start" : "date"} DESC
+        LIMIT 10000
+      `);
+      return rows as object[];
+    } catch { return []; }
+  }
+
+  // ── Account-Based Analytics (07_account_analytics.sql) ───────────────────
+  // Methods for querying company profiles, sessions, engagement, and target
+  // account activity. Not yet on PaidMediaAdapter interface — formalized in Task 31.
+
+  /**
+   * Look up enriched firmographic profile for a company domain.
+   * Queries company_profiles table.
+   */
+  async getCompanyProfile(company_domain: string): Promise<object | null> {
+    const bq = await this.client();
+    const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
+    try {
+      const [rows] = await bq.query(`
+        SELECT *
+        FROM ${ds}.company_profiles
+        WHERE company_domain = '${company_domain}'
+          AND is_active = TRUE
+        LIMIT 1
+      `);
+      return rows.length ? rows[0] : null;
+    } catch { return null; }
+  }
+
+  /**
+   * Get the target account funnel view — ranked target accounts with
+   * engagement, CRM status, paid media exposure, and intent scores.
+   * Queries v_target_account_funnel.
+   */
+  async getTargetAccountFunnel(filters: {
+    account_tier?: "tier_1" | "tier_2" | "tier_3";
+    crm_pipeline_stage?: string;
+    intent_spiking?: boolean;
+    is_suppressed_tofu?: boolean;
+    min_sessions_30d?: number;
+    limit?: number;
+  } = {}): Promise<object[]> {
+    const bq = await this.client();
+    const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
+    const conditions: string[] = [];
+    if (filters.account_tier)       conditions.push(`account_tier = '${filters.account_tier}'`);
+    if (filters.crm_pipeline_stage) conditions.push(`crm_pipeline_stage = '${filters.crm_pipeline_stage}'`);
+    if (filters.intent_spiking != null) conditions.push(`intent_spiking = ${filters.intent_spiking}`);
+    if (filters.is_suppressed_tofu != null) conditions.push(`is_suppressed_tofu = ${filters.is_suppressed_tofu}`);
+    if (filters.min_sessions_30d != null) conditions.push(`sessions_30d >= ${filters.min_sessions_30d}`);
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    try {
+      const [rows] = await bq.query(`
+        SELECT *
+        FROM ${ds}.v_target_account_funnel
+        ${where}
+        ORDER BY funnel_priority_score DESC, account_tier_rank ASC
+        LIMIT ${filters.limit ?? 100}
+      `);
+      return rows as object[];
+    } catch { return []; }
+  }
+
+  /**
+   * Get de-anonymized sessions for a specific company.
+   * Queries company_sessions table.
+   */
+  async getCompanySessions(company_domain: string, lookback_days = 30): Promise<object[]> {
+    const bq = await this.client();
+    const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
+    try {
+      const [rows] = await bq.query(`
+        SELECT
+          session_id, session_date, session_start_at, session_duration_seconds,
+          page_count, channel_grouping, landing_page, utm_campaign,
+          visited_pricing, visited_demo, visited_contact, visited_docs,
+          has_paid_touchpoint, paid_touchpoint_platform, paid_touchpoint_campaign_id,
+          crm_pipeline_stage, is_target_account, resolution_method, resolution_confidence
+        FROM ${ds}.company_sessions
+        WHERE company_domain = '${company_domain}'
+          AND session_date >= DATE_SUB(CURRENT_DATE(), INTERVAL ${lookback_days} DAY)
+        ORDER BY session_date DESC
+        LIMIT 500
+      `);
+      return rows as object[];
+    } catch { return []; }
+  }
+
+  /**
+   * Get engagement summary for a company over a time period.
+   * Queries company_engagement table.
+   */
+  async getCompanyEngagement(company_domain: string, period_type = "rolling_30d"): Promise<object | null> {
+    const bq = await this.client();
+    const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
+    try {
+      const [rows] = await bq.query(`
+        SELECT *
+        FROM ${ds}.company_engagement
+        WHERE company_domain = '${company_domain}'
+          AND period_type = '${period_type}'
+        ORDER BY period_start DESC
+        LIMIT 1
+      `);
+      return rows.length ? rows[0] : null;
+    } catch { return null; }
+  }
+
+  /**
+   * Get dark funnel coverage: target accounts with no web presence.
+   * Queries v_dark_funnel_coverage.
+   */
+  async getDarkFunnelCoverage(filters: {
+    account_tier?: "tier_1" | "tier_2" | "tier_3";
+    web_presence_status?: "dark" | "lapsed" | "visible";
+    crm_pipeline_stage?: string;
+  } = {}): Promise<object[]> {
+    const bq = await this.client();
+    const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
+    const conditions: string[] = [];
+    if (filters.account_tier)        conditions.push(`account_tier = '${filters.account_tier}'`);
+    if (filters.web_presence_status) conditions.push(`web_presence_status = '${filters.web_presence_status}'`);
+    if (filters.crm_pipeline_stage)  conditions.push(`crm_pipeline_stage = '${filters.crm_pipeline_stage}'`);
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    try {
+      const [rows] = await bq.query(`
+        SELECT *
+        FROM ${ds}.v_dark_funnel_coverage
+        ${where}
+        ORDER BY tier_rank ASC, icp_score DESC
+        LIMIT 500
+      `);
+      return rows as object[];
+    } catch { return []; }
+  }
+
+  /**
+   * Get daily target account activity history for a specific company.
+   * Queries target_account_activity table.
+   */
+  async getTargetAccountActivity(company_domain: string, lookback_days = 30): Promise<object[]> {
+    const bq = await this.client();
+    const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
+    try {
+      const [rows] = await bq.query(`
+        SELECT *
+        FROM ${ds}.target_account_activity
+        WHERE company_domain = '${company_domain}'
+          AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL ${lookback_days} DAY)
+        ORDER BY date DESC
+        LIMIT ${lookback_days}
+      `);
+      return rows as object[];
+    } catch { return []; }
+  }
+
+  // ── Interactive Media Actions ─────────────────────────────────────────────
+  // BigQuery adapter routes these to the Operator agent (via inherited FileAdapter logic)
+  // which already has the correct platform API credentials.
 }
 
 // ── Row mapping ──────────────────────────────────────────────────────────────
 
+// Maps a platform_campaigns row (paid-media-schema 03_platform.sql) to Campaign type
 function rowToCampaign(r: Record<string, unknown>): Campaign {
   return {
-    id: String(r.id),
-    name: String(r.name),
-    account_id: String(r.account_id),
-    team_id: String(r.team_id),
-    platform: String(r.platform) as Platform,
-    status: String(r.status) as CampaignStatus,
-    objective: String(r.objective) as CampaignObjective,
+    id:           String(r.campaign_id ?? r.id),
+    name:         String(r.campaign_name ?? r.name),
+    account_id:   String(r.platform_account_id ?? r.account_id ?? ""),
+    team_id:      String(r.team_id ?? ""),
+    platform:     String(r.platform) as Platform,
+    status:       String(r.status) as CampaignStatus,
+    objective:    String(r.objective ?? "conversions") as CampaignObjective,
     funnel_stage: r.funnel_stage ? String(r.funnel_stage) as "upper" | "mid" | "lower" : undefined,
     budget: {
-      amount: r.budget_amount != null ? Number(r.budget_amount) : 0,
-      // BQ exports typically use "daily" or "lifetime"; map to Budget.type
-      type: (String(r.budget_type ?? "lifetime")) as "daily" | "lifetime" | "monthly",
-      currency: String(r.budget_currency ?? "USD"),
+      amount:   r.budget_amount != null ? Number(r.budget_amount) : 0,
+      type:     (String(r.budget_type ?? "lifetime")) as "daily" | "lifetime" | "monthly",
+      currency: String(r.budget_currency ?? r.currency ?? "USD"),
     },
     start_date: String(r.start_date ?? ""),
-    end_date: r.end_date ? String(r.end_date) : undefined,
-    notes: r.notes ? String(r.notes) : undefined,
-    tags: r.tags ? String(r.tags).split(",").map(t => t.trim()).filter(Boolean) : undefined,
+    end_date:   r.end_date ? String(r.end_date) : undefined,
+    notes:      r.notes ? String(r.notes) : undefined,
   };
 }

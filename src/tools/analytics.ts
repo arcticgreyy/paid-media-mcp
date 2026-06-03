@@ -1,461 +1,190 @@
-// Copyright 2026 @arcticgreyy. All rights reserved.
-// Licensed under the Business Source License 1.1 (BSL 1.1)
-// Persistent Attribution Required. See /LICENSE and /NOTICE for terms.
-// Central Suite Repository: https://github.com/arcticgreyy/paid-media-suite
-
 /**
- * analytics.ts — Reporting MCP Tools Surface (Task 31)
+ * Copyright 2026 @arcticgreyy. All rights reserved.
+ * Licensed under the Business Source License 1.1 (BSL 1.1)
+ * Persistent Attribution Required. See /LICENSE and /NOTICE for terms.
+ * Central Suite Repository: https://github.com/arcticgreyy/paid-media-suite
+ */
+/**
+ * Analytics & Data Governance tools
  *
- * Exposes three parameterized analytics lookup tools backed by the Task 28
- * BigQuery reporting views. All queries enforce a hard 150-row ceiling to
- * protect agent context windows. Results are returned as Markdown tables so
- * the calling agent receives clean structured text rather than raw JSON.
+ * These tools let practitioners query the live data layer interactively —
+ * the same data the autonomous agents monitor on a schedule, but on-demand.
  *
- * Required environment variables (read at call time, not module load time):
- *   PAID_MEDIA_GCP_PROJECT  — GCP project ID   (e.g. "acme-analytics-prod")
- *   PAID_MEDIA_BQ_DATASET   — BigQuery dataset  (e.g. "paid_media")
- *
- * BigQuery authentication follows Application Default Credentials (ADC):
- *   - Local dev:  gcloud auth application-default login
- *   - Cloud Run:  attached service account (roles/bigquery.dataViewer)
- *   - Explicit:   GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json
- *
- * These tools have no dependency on the PaidMediaAdapter interface — they
- * execute SQL directly against the three Task 28 unified views.
+ * Tools:
+ *   query_account_journey       — full multi-touch path for a specific account domain
+ *   check_signal_capture_health — current capture rates for all monitored namespaces
+ *   detect_crm_null_fields      — CRM records missing media identifiers
  */
 
 import { z } from "zod";
+import type { PaidMediaAdapter } from "../adapters/base.js";
 
-// ── Constants ──────────────────────────────────────────────────────────────────
+export const analyticsTools = (adapter: PaidMediaAdapter) => [
 
-/** Hard ceiling on rows returned to the agent context window. */
-const MAX_ROWS = 150;
+  // ── Account Journey ─────────────────────────────────────────────────────────
 
-// ── BQ config (resolved at call time) ────────────────────────────────────────
+  {
+    name: "query_account_journey",
+    description:
+      "Query the BigQuery data warehouse to return the full multi-touch attribution path " +
+      "for all users mapped to a specific company account domain. " +
+      "Shows every paid media touchpoint (across all platforms) that influenced the account, " +
+      "in chronological order, with attribution credit weights. " +
+      "Essential for B2B account-based attribution — surfaces cross-platform, cross-device " +
+      "journeys that platform-level reporting misses. " +
+      "Requires BigQuery mode (BIGQUERY_PROJECT_ID env var must be set).",
+    inputSchema: z.object({
+      account_domain: z
+        .string()
+        .describe(
+          "The corporate domain of the target account, e.g. 'cloudflare.com'. " +
+          "Do not include www. or https://."
+        ),
+      lookback_days: z
+        .number()
+        .optional()
+        .describe(
+          "Days of history to include. Default 90 — B2B sales cycles are long. " +
+          "Use 180+ for enterprise deals."
+        ),
+      conversion_type: z
+        .string()
+        .optional()
+        .describe(
+          "Filter to touchpoints that led to a specific conversion type, " +
+          "e.g. 'opportunity_created'. Omit to see all touchpoints."
+        ),
+    }),
+    handler: async (args: {
+      account_domain: string;
+      lookback_days?: number;
+      conversion_type?: string;
+    }) => {
+      const results = await adapter.queryAccountJourney(
+        args.account_domain,
+        args.lookback_days ?? 90,
+        args.conversion_type
+      );
 
-function bqConfig(): { projectId: string; dataset: string } {
-  return {
-    projectId: process.env.PAID_MEDIA_GCP_PROJECT ?? "",
-    dataset:   process.env.PAID_MEDIA_BQ_DATASET  ?? "",
-  };
-}
+      if (!results || results.touchpoints.length === 0) {
+        return {
+          content: [{
+            type: "text",
+            text: `No touchpoints found for domain: ${args.account_domain} in the past ${args.lookback_days ?? 90} days. ` +
+              "This may mean: (1) the account hasn't interacted with paid media in this window, " +
+              "(2) the domain isn't yet stitched in the identity graph, or " +
+              "(3) BigQuery mode isn't configured (BIGQUERY_PROJECT_ID not set).",
+          }],
+        };
+      }
 
-// ── Lazy BigQuery client ──────────────────────────────────────────────────────
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type BqClient = { query: (sql: string, opts?: Record<string, unknown>) => Promise<[Record<string, unknown>[]]> };
-
-let _bqClient: BqClient | null = null;
-
-async function getBqClient(projectId: string): Promise<BqClient> {
-  if (!_bqClient) {
-    try {
-      const mod = await import("@google-cloud/bigquery" as string as never) as {
-        BigQuery: new (opts: { projectId: string }) => BqClient;
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify(results, null, 2),
+        }],
       };
-      _bqClient = new mod.BigQuery({ projectId });
-    } catch {
-      throw new Error(
-        "Analytics tools require @google-cloud/bigquery. " +
-        "Run: npm install @google-cloud/bigquery"
-      );
-    }
-  }
-  return _bqClient;
-}
+    },
+  },
 
-// ── Markdown table formatter ──────────────────────────────────────────────────
+  // ── Signal Capture Health ───────────────────────────────────────────────────
 
-/**
- * Converts an array of BQ row objects into a pipe-delimited Markdown table.
- *
- * - NULL / undefined values display as "—"
- * - Integers display without decimals
- * - Floats are rounded to 4 decimal places
- * - Column widths are padded to the widest cell in each column
- */
-function formatMarkdownTable(rows: Record<string, unknown>[]): string {
-  if (rows.length === 0) return "_No data returned._";
+  {
+    name: "check_signal_capture_health",
+    description:
+      "Check the current capture rates for all monitored identity signal namespaces " +
+      "(platform click IDs and analytics cookies) against their thresholds. " +
+      "Reads from watchdog_capture_rate_log for historical rates and watchdog_alerts for active issues. " +
+      "Use this when diagnosing a suspected tracking problem, before running attribution analysis, " +
+      "or when a stakeholder questions the data quality. " +
+      "Unlike get_watchdog_alerts (which shows cached alert records), this tool can " +
+      "also surface the trend direction for each signal.",
+    inputSchema: z.object({
+      hours_back: z
+        .number()
+        .optional()
+        .describe("Hours of capture rate history to summarize (default 24)"),
+      platform: z
+        .string()
+        .optional()
+        .describe("Filter to a specific platform, e.g. 'meta', 'google_ads'"),
+    }),
+    handler: async (args: { hours_back?: number; platform?: string }) => {
+      const [alerts, captureRates] = await Promise.all([
+        adapter.getWatchdogAlerts("open"),
+        adapter.getSignalCaptureRates(args.hours_back ?? 24, args.platform),
+      ]);
 
-  const columns = Object.keys(rows[0]);
+      const criticalAlerts = alerts.filter((a) => a.severity === "critical");
+      const warningAlerts  = alerts.filter((a) => a.severity === "warning");
 
-  const strRows: string[][] = rows.map((row) =>
-    columns.map((col) => {
-      const v = row[col];
-      if (v === null || v === undefined) return "—";
-      if (typeof v === "number") {
-        return Number.isInteger(v) ? String(v) : v.toFixed(4);
+      const overallStatus =
+        criticalAlerts.length > 0 ? "RED" :
+        warningAlerts.length > 0  ? "YELLOW" : "GREEN";
+
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            overall_status: overallStatus,
+            active_alerts: {
+              critical: criticalAlerts.length,
+              warning:  warningAlerts.length,
+              alerts:   alerts.slice(0, 10),
+            },
+            capture_rates: captureRates,
+          }, null, 2),
+        }],
+      };
+    },
+  },
+
+  // ── CRM Null Field Detection ────────────────────────────────────────────────
+
+  {
+    name: "detect_crm_null_fields",
+    description:
+      "Scan recent CRM lead records for missing media identifier fields — " +
+      "a key signal that the tracking pipeline has broken. " +
+      "Returns the count and percentage of leads created in the past N hours that " +
+      "are missing gclid, fbclid, li_fat_id, ga4_client_id, and/or utm_source. " +
+      "A spike in null fields means conversions are arriving unattributed, " +
+      "which degrades attribution model accuracy. " +
+      "Cross-reference with check_signal_capture_health to identify the break point.",
+    inputSchema: z.object({
+      since_hours: z
+        .number()
+        .optional()
+        .describe("How many hours back to scan (default 24)"),
+    }),
+    handler: async (args: { since_hours?: number }) => {
+      const result = await adapter.getCrmNullFieldStats(args.since_hours ?? 24);
+
+      if (!result) {
+        return {
+          content: [{
+            type: "text",
+            text: "CRM null field data not available. Requires either a populated crm_leads_staging " +
+              "BigQuery table or a connected Salesforce instance.",
+          }],
+        };
       }
-      if (typeof v === "boolean") return v ? "true" : "false";
-      // BQ Date/Timestamp objects expose .value (epoch ms string) or toString()
-      const s = String(v);
-      return s;
-    })
-  );
 
-  const widths = columns.map((col, i) =>
-    Math.max(col.length, ...strRows.map((r) => r[i].length))
-  );
-
-  const pad = (s: string, w: number) => s.padEnd(w, " ");
-
-  const header  = "| " + columns.map((c, i) => pad(c, widths[i])).join(" | ") + " |";
-  const divider = "| " + widths.map((w) => "-".repeat(w)).join(" | ") + " |";
-  const body    = strRows.map(
-    (row) => "| " + row.map((cell, i) => pad(cell, widths[i])).join(" | ") + " |"
-  );
-
-  return [header, divider, ...body].join("\n");
-}
-
-// ── Truncation notice ─────────────────────────────────────────────────────────
-
-function truncationNote(total: number): string {
-  return (
-    `\n\n> ⚠️ **Result truncated** — showing first ${total} rows.` +
-    ` Apply a tighter \`start_date\`/\`end_date\` window, add a \`platform\` filter,` +
-    ` or specify a \`campaign_id\` to reduce the result set.`
-  );
-}
-
-// ── Core query runner ─────────────────────────────────────────────────────────
-
-/**
- * Executes sql against BigQuery, enforces the MAX_ROWS ceiling, and returns
- * a Markdown-formatted table string wrapped in an MCP content response.
- *
- * Catches all error classes and returns clean diagnostic strings rather than
- * throwing — the calling agent receives an explanatory message instead of a
- * stack trace.
- */
-async function runAnalyticsQuery(
-  label: string,
-  sql: string,
-): Promise<{ content: [{ type: "text"; text: string }] }> {
-  const { projectId, dataset } = bqConfig();
-
-  if (!projectId || !dataset) {
-    return content(
-      "**Configuration error** — analytics tools require two environment variables:\n\n" +
-      "- `PAID_MEDIA_GCP_PROJECT` — GCP project ID (e.g. `acme-analytics-prod`)\n" +
-      "- `PAID_MEDIA_BQ_DATASET`  — BigQuery dataset name (e.g. `paid_media`)"
-    );
-  }
-
-  // Inject project + dataset into view references at query time
-  const resolvedSql = sql
-    .replaceAll("__PROJECT__", projectId)
-    .replaceAll("__DATASET__", dataset);
-
-  try {
-    const bq = await getBqClient(projectId);
-    const [rows] = await bq.query(resolvedSql);
-
-    if (rows.length === 0) {
-      return content(
-        `## ${label}\n\n_No data found. The view returned an empty result set._ ` +
-        `Try broadening your date range or removing platform/campaign filters.`
-      );
-    }
-
-    const truncated = rows.length > MAX_ROWS;
-    const display   = truncated ? rows.slice(0, MAX_ROWS) : rows;
-    const table     = formatMarkdownTable(display as Record<string, unknown>[]);
-    const note      = truncated ? truncationNote(MAX_ROWS) : "";
-    const rowLabel  = `${display.length} row${display.length !== 1 ? "s" : ""}`;
-
-    return content(`## ${label} (${rowLabel})\n\n${table}${note}`);
-
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    const lower   = message.toLowerCase();
-
-    if (
-      lower.includes("unauthenticated") ||
-      lower.includes("credentials") ||
-      lower.includes("permission denied") ||
-      lower.includes("403")
-    ) {
-      return content(
-        "**BigQuery authentication error** — ensure one of the following is in place:\n\n" +
-        "- Local: run `gcloud auth application-default login`\n" +
-        "- Cloud Run / GCE: attach a service account with `roles/bigquery.dataViewer`\n" +
-        "- Explicit key: set `GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json`\n\n" +
-        `Details: \`${message}\``
-      );
-    }
-
-    if (lower.includes("not found") || lower.includes("does not exist")) {
-      return content(
-        "**BigQuery view not found** — the reporting view may not have been deployed yet. " +
-        "Run `bigquery/17_unified_reporting.sql` against your dataset to create it.\n\n" +
-        `Details: \`${message}\``
-      );
-    }
-
-    return content(
-      `**BigQuery query error** for "${label}":\n\n\`\`\`\n${message}\n\`\`\``
-    );
-  }
-}
-
-/** Wrap a text string in the MCP tool response envelope. */
-function content(text: string): { content: [{ type: "text"; text: string }] } {
-  return { content: [{ type: "text", text }] };
-}
-
-// ── Input sanitizers ──────────────────────────────────────────────────────────
-// Defense-in-depth against injection. BQ parameterized queries require a fixed
-// WHERE clause structure; dynamic filter building requires safe interpolation.
-
-/** Allow only digits and hyphens; truncate at 10 chars (YYYY-MM-DD). */
-function sanitizeDate(s: string): string {
-  return s.replace(/[^0-9-]/g, "").slice(0, 10);
-}
-
-/** Strip single-quotes and semicolons from filter string values. */
-function sanitizeStr(s: string): string {
-  return s.replace(/['";]/g, "");
-}
-
-// ── SQL builders ──────────────────────────────────────────────────────────────
-
-function buildDailySpendSql(args: {
-  start_date?: string;
-  end_date?: string;
-  platform?: string;
-  campaign_id?: string;
-}): string {
-  const conds: string[] = [];
-  if (args.start_date)  conds.push(`date >= '${sanitizeDate(args.start_date)}'`);
-  if (args.end_date)    conds.push(`date <= '${sanitizeDate(args.end_date)}'`);
-  if (args.platform)    conds.push(`platform = '${sanitizeStr(args.platform)}'`);
-  if (args.campaign_id) conds.push(`campaign_id = '${sanitizeStr(args.campaign_id)}'`);
-
-  const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
-
-  return `
-SELECT
-  date,
-  platform,
-  account_id,
-  campaign_id,
-  campaign_name,
-  CAST(spend_usd AS FLOAT64)          AS spend_usd,
-  impressions,
-  clicks,
-  CAST(platform_conversions AS FLOAT64) AS platform_conversions
-FROM \`__PROJECT__.__DATASET__.v_unified_daily_spend\`
-${where}
-ORDER BY date DESC, spend_usd DESC
-LIMIT ${MAX_ROWS + 1}
-`.trim();
-}
-
-function buildRoiSql(args: {
-  platform?: string;
-  campaign_id?: string;
-  period_start_after?: string;
-  period_end_before?: string;
-}): string {
-  const conds: string[] = [];
-  if (args.platform)            conds.push(`platform = '${sanitizeStr(args.platform)}'`);
-  if (args.campaign_id)         conds.push(`campaign_id = '${sanitizeStr(args.campaign_id)}'`);
-  if (args.period_start_after)  conds.push(`period_start >= '${sanitizeDate(args.period_start_after)}'`);
-  if (args.period_end_before)   conds.push(`period_end <= '${sanitizeDate(args.period_end_before)}'`);
-
-  const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
-
-  return `
-SELECT
-  campaign_id,
-  campaign_name,
-  platform,
-  channel,
-  funnel_stage,
-  period_start,
-  period_end,
-  CAST(total_spend AS FLOAT64)              AS total_spend,
-  total_impressions,
-  total_clicks,
-  CAST(platform_conversions AS FLOAT64)     AS platform_conversions,
-  CAST(platform_cpa AS FLOAT64)             AS platform_cpa,
-  paid_sessions,
-  CAST(traffic_cpa_per_session AS FLOAT64)  AS traffic_cpa_per_session,
-  crm_leads_generated,
-  mql_count,
-  closed_won_count,
-  CAST(open_pipeline_value AS FLOAT64)      AS open_pipeline_value,
-  CAST(closed_won_arr AS FLOAT64)           AS closed_won_arr,
-  CAST(revenue_roas_closed_won AS FLOAT64)  AS revenue_roas,
-  CAST(pipeline_roas AS FLOAT64)            AS pipeline_roas,
-  CAST(lead_to_mql_rate_pct AS FLOAT64)     AS lead_to_mql_pct,
-  CAST(mql_to_closed_won_rate_pct AS FLOAT64) AS mql_to_cw_pct,
-  attributed_conversions,
-  CAST(attributed_roas AS FLOAT64)          AS attributed_roas,
-  CAST(platform_vs_mta_delta_pct AS FLOAT64) AS platform_vs_mta_delta_pct
-FROM \`__PROJECT__.__DATASET__.v_reporting_campaign_roi\`
-${where}
-ORDER BY total_spend DESC
-LIMIT ${MAX_ROWS + 1}
-`.trim();
-}
-
-function buildPacingSql(args: {
-  platform?: string;
-  campaign_id?: string;
-}): string {
-  const conds: string[] = [];
-  if (args.platform)    conds.push(`platform = '${sanitizeStr(args.platform)}'`);
-  if (args.campaign_id) conds.push(`campaign_id = '${sanitizeStr(args.campaign_id)}'`);
-
-  // Pacing view is always current-month scoped — no date filter needed or useful
-  const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
-
-  return `
-SELECT
-  campaign_id,
-  campaign_name,
-  platform,
-  campaign_status,
-  budget_type,
-  CAST(monthly_cap_usd AS FLOAT64)                AS monthly_cap_usd,
-  CAST(mtd_spend_usd AS FLOAT64)                  AS mtd_spend_usd,
-  days_elapsed,
-  days_remaining,
-  days_in_month,
-  CAST(budget_consumed_pct AS FLOAT64)            AS budget_consumed_pct,
-  CAST(pacing_velocity_pct AS FLOAT64)            AS pacing_velocity_pct,
-  mtd_pacing_status,
-  CAST(mtd_pacing_variance_usd AS FLOAT64)        AS mtd_pacing_variance_usd,
-  CAST(recommended_daily_run_rate_usd AS FLOAT64) AS recommended_daily_rate,
-  CAST(projected_month_end_spend_usd AS FLOAT64)  AS projected_month_end,
-  projected_on_monthly_budget,
-  CAST(prior_month_total_spend AS FLOAT64)        AS prior_month_spend,
-  CAST(spend_mom_delta_pct AS FLOAT64)            AS spend_mom_delta_pct
-FROM \`__PROJECT__.__DATASET__.v_reporting_monthly_pacing\`
-${where}
-ORDER BY mtd_pacing_status, mtd_spend_usd DESC
-LIMIT ${MAX_ROWS + 1}
-`.trim();
-}
-
-// ── Tool definitions ──────────────────────────────────────────────────────────
-
-/**
- * Returns the three Task 31 analytics tools.
- * Unlike other tool modules, this function takes no adapter argument — all
- * three tools execute SQL directly against the Task 28 BigQuery views.
- */
-export const analyticsTools = () => [
-
-  // ── Tool 1: Daily spend metrics ─────────────────────────────────────────────
-  {
-    name: "get_campaign_performance_metrics",
-    description:
-      "Query daily campaign spend, impressions, clicks, and platform-reported conversions " +
-      "across all active channels (Meta, Google Ads, TikTok, Reddit) from the unified " +
-      "`v_unified_daily_spend` view. Returns one row per (date × campaign) combination. " +
-      "Filter by date range, platform, or campaign_id to narrow the result set. " +
-      "Results are capped at 150 rows — apply tighter filters if you receive a truncation notice.",
-    inputSchema: z.object({
-      start_date:  z.string().optional().describe("Start date inclusive (YYYY-MM-DD)"),
-      end_date:    z.string().optional().describe("End date inclusive (YYYY-MM-DD)"),
-      platform:    z.string().optional().describe(
-        "Filter to one platform: meta | google_ads | tiktok | reddit"
-      ),
-      campaign_id: z.string().optional().describe("Filter to a single campaign UUID"),
-    }),
-    handler: async (args: {
-      start_date?: string;
-      end_date?: string;
-      platform?: string;
-      campaign_id?: string;
-    }) => {
-      const sql = buildDailySpendSql(args);
-      const parts: string[] = ["Daily Performance Metrics"];
-      if (args.platform)    parts.push(args.platform);
-      if (args.campaign_id) parts.push(args.campaign_id);
-      if (args.start_date || args.end_date) {
-        parts.push(`${args.start_date ?? "…"} → ${args.end_date ?? "…"}`);
-      }
-      return runAnalyticsQuery(parts.join(" | "), sql);
+      const status = result.breach ? "⚠️ BREACH" : "✅ OK";
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            status,
+            ...result,
+            interpretation: result.breach
+              ? `${result.null_pct}% of leads are missing media identifiers — above the ${result.threshold_pct}% threshold. ` +
+                "This indicates a tracking break. Use check_signal_capture_health to identify which signal dropped."
+              : `${result.null_pct}% null rate is within the ${result.threshold_pct}% threshold.`,
+          }, null, 2),
+        }],
+      };
     },
   },
 
-  // ── Tool 2: 3-tier ROI / downstream metrics ─────────────────────────────────
-  {
-    name: "get_campaign_downstream_roi",
-    description:
-      "Compare campaign performance across three measurement layers using the " +
-      "`v_reporting_campaign_roi` view:\n" +
-      "• **Platform layer** — ad-network pixel conversions and platform CPA\n" +
-      "• **Traffic layer** — paid sessions, unique visitors, and web conversion events via GA4\n" +
-      "• **Revenue layer** — CRM leads, MQLs, Closed-Won count, pipeline ARR, and revenue ROAS\n" +
-      "Also includes MTA attribution comparison (attributed ROAS vs. platform delta).\n\n" +
-      "This view aggregates all-time metrics per campaign. Use `start_date`/`end_date` to " +
-      "filter by the campaign's reported activity window (`period_start` / `period_end`). " +
-      "Results are capped at 150 rows.",
-    inputSchema: z.object({
-      platform:           z.string().optional().describe(
-        "Filter to one platform: meta | google_ads | tiktok | reddit"
-      ),
-      campaign_id:        z.string().optional().describe("Filter to a single campaign UUID"),
-      start_date:         z.string().optional().describe(
-        "Only include campaigns whose spend period started on or after this date (YYYY-MM-DD)"
-      ),
-      end_date:           z.string().optional().describe(
-        "Only include campaigns whose spend period ended on or before this date (YYYY-MM-DD)"
-      ),
-    }),
-    handler: async (args: {
-      platform?: string;
-      campaign_id?: string;
-      start_date?: string;
-      end_date?: string;
-    }) => {
-      const sql = buildRoiSql({
-        platform:           args.platform,
-        campaign_id:        args.campaign_id,
-        period_start_after: args.start_date,
-        period_end_before:  args.end_date,
-      });
-      const parts: string[] = ["Campaign ROI — 3-Tier CPA"];
-      if (args.platform)    parts.push(args.platform);
-      if (args.campaign_id) parts.push(args.campaign_id);
-      return runAnalyticsQuery(parts.join(" | "), sql);
-    },
-  },
-
-  // ── Tool 3: Monthly budget pacing ────────────────────────────────────────────
-  {
-    name: "get_monthly_budget_pacing",
-    description:
-      "Retrieve current calendar-month pacing status for all active campaigns from the " +
-      "`v_reporting_monthly_pacing` view. Key fields:\n" +
-      "• `mtd_spend_usd` — spend so far this month\n" +
-      "• `monthly_cap_usd` — normalized monthly budget (daily × days / lifetime pro-rated)\n" +
-      "• `pacing_velocity_pct` — actual MTD vs. expected at this point in the month (%)\n" +
-      "• `mtd_pacing_status` — over_pacing | on_pace | under_pacing | no_budget_data\n" +
-      "• `recommended_daily_rate` — USD/day needed to exhaust cap by month end\n" +
-      "• `projected_month_end` — projected total if current run-rate holds\n\n" +
-      "This view is always scoped to the current calendar month. No date filter is available. " +
-      "Results are capped at 150 rows.",
-    inputSchema: z.object({
-      platform:    z.string().optional().describe(
-        "Filter to one platform: meta | google_ads | tiktok | reddit"
-      ),
-      campaign_id: z.string().optional().describe("Filter to a single campaign UUID"),
-    }),
-    handler: async (args: {
-      platform?: string;
-      campaign_id?: string;
-    }) => {
-      const sql = buildPacingSql(args);
-      const parts: string[] = ["Monthly Budget Pacing"];
-      if (args.platform)    parts.push(args.platform);
-      if (args.campaign_id) parts.push(args.campaign_id);
-      return runAnalyticsQuery(parts.join(" | "), sql);
-    },
-  },
 ];

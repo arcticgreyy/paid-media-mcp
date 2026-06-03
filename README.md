@@ -1,3 +1,17 @@
+---
+
+## Part of the Paid Media AI Suite
+
+This is one component of a four-part system. See [paid-media-suite](https://github.com/arcticgreyy/paid-media-suite) for the full architecture, setup guide, and AGENT.md.
+
+| Component | Role |
+|-----------|------|
+| **[paid-media-schema](https://github.com/arcticgreyy/paid-media-schema)** | Shared data contract — BigQuery DDL and identity namespace registry |
+| **[paid-media-mcp](https://github.com/arcticgreyy/paid-media-mcp)** ← you are here | Interactive data server — connects Claude to campaign data and agent outputs |
+| **[paid-media-agent](https://github.com/arcticgreyy/paid-media-agent)** | Autonomous agents — Watchdog, Analyst, Operator on Cloud Run |
+| **[skills](https://github.com/arcticgreyy/skills)** | Interactive skill library — 16 paid-media skills for Claude Code |
+
+
 # Paid Media MCP
 
 A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server template for paid media teams. Connect Claude to your campaign data, team structure, performance history, attribution models, reporting templates, asset library, test-and-learn history, audience library, and measurement setup — so it can answer questions, write reports, debug tracking issues, and assist with analysis directly in your workflow. This is a platform agnostic MCP combining campaign data, institutional knowledge and historical performance across current and past vendors.

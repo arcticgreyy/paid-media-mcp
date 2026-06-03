@@ -1,7 +1,7 @@
 {
   "name": "paid-media-mcp",
-  "version": "1.0.0",
-  "description": "MCP server template for paid media campaign management",
+  "version": "2.0.0",
+  "description": "MCP server for paid media teams — connects Claude to campaigns, performance data, attribution results, identity signals, and autonomous agent outputs",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {

@@ -1,4 +1,11 @@
-import { readFileSync, existsSync } from "fs";
+/**
+ * Copyright 2026 @arcticgreyy. All rights reserved.
+ * Licensed under the Business Source License 1.1 (BSL 1.1)
+ * Persistent Attribution Required. See /LICENSE and /NOTICE for terms.
+ * Central Suite Repository: https://github.com/arcticgreyy/paid-media-suite
+ */
+import { readFileSync } from "fs";
+import { existsSync } from "fs";
 import { resolve } from "path";
 import type { PaidMediaAdapter, CampaignFilters, PerformanceFilters } from "./base.js";
 import type {
@@ -19,6 +26,8 @@ import type {
   PlatformsConfig,
   PerformanceRecord,
   AttributionConfiguration,
+  AttributionChannelSummary,
+  AttributionRun,
   ReportingTemplate,
   Team,
   TeamMember,
@@ -27,6 +36,10 @@ import type {
   TestStatus,
   TestType,
   ThirdPartyAudienceLayer,
+  IdentityNamespace,
+  WatchdogAlert,
+  AnalystInsight,
+  OperatorPendingApproval,
 } from "../types.js";
 
 function loadJson<T>(filePath: string): T {
@@ -66,8 +79,10 @@ const EMPTY_MEASUREMENT: MeasurementSetup = {
 
 export class FileAdapter implements PaidMediaAdapter {
   private data: PaidMediaData;
+  protected readonly dataDir: string;
 
   constructor(dataDir = "./data") {
+    this.dataDir = dataDir;
     this.data = {
       metadata: { company_name: "", primary_currency: "USD", fiscal_year_start: "01-01", last_updated: "" },
       accounts: [],
@@ -278,5 +293,312 @@ export class FileAdapter implements PaidMediaAdapter {
 
   async getPlatformsConfig(): Promise<PlatformsConfig> {
     return this.data.platforms_config;
+  }
+
+  // ── Identity ────────────────────────────────────────────────────────────────
+  // Namespace registry is read from paid-media-schema/namespaces/identity_namespaces.json
+  // if PAID_MEDIA_SCHEMA_DIR is set, otherwise from data/identity_namespaces.json.
+
+  private loadNamespaces(): IdentityNamespace[] {
+    const candidates = [
+      process.env.PAID_MEDIA_SCHEMA_DIR
+        ? resolve(process.env.PAID_MEDIA_SCHEMA_DIR, "namespaces/identity_namespaces.json")
+        : null,
+      resolve(this.dataDir as string, "identity_namespaces.json"),
+    ].filter(Boolean) as string[];
+
+    for (const path of candidates) {
+      if (existsSync(path)) {
+        try {
+          const raw = JSON.parse(readFileSync(path, "utf-8")) as { namespaces: IdentityNamespace[] };
+          return raw.namespaces ?? [];
+        } catch { /* try next */ }
+      }
+    }
+    return [];
+  }
+
+  async getIdentityNamespaces(category?: string): Promise<IdentityNamespace[]> {
+    const all = this.loadNamespaces();
+    return category ? all.filter(n => n.category === category) : all;
+  }
+
+  async getIdentityNamespace(namespace_id: string): Promise<IdentityNamespace | null> {
+    return this.loadNamespaces().find(n => n.namespace_id === namespace_id) ?? null;
+  }
+
+  // ── Attribution Results ─────────────────────────────────────────────────────
+
+  async getLatestAttributionResults(conversion_type?: string): Promise<AttributionChannelSummary | null> {
+    const path = resolve(this.dataDir as string, "attribution-results.json");
+    if (!existsSync(path)) return null;
+    try {
+      const raw = JSON.parse(readFileSync(path, "utf-8")) as AttributionChannelSummary;
+      if (conversion_type) {
+        return {
+          ...raw,
+          channel_summary: raw.channel_summary.filter(c => c.conversion_type === conversion_type),
+        };
+      }
+      return raw;
+    } catch { return null; }
+  }
+
+  async getAttributionRuns(limit = 10): Promise<AttributionRun[]> {
+    const path = resolve(this.dataDir as string, "attribution-runs.json");
+    if (!existsSync(path)) return [];
+    try {
+      const raw = JSON.parse(readFileSync(path, "utf-8")) as AttributionRun[];
+      return raw.slice(0, limit);
+    } catch { return []; }
+  }
+
+  // ── Agent Outputs ───────────────────────────────────────────────────────────
+
+  async getWatchdogAlerts(status?: "open" | "acknowledged" | "resolved"): Promise<WatchdogAlert[]> {
+    const path = resolve(this.dataDir as string, "watchdog-alerts.json");
+    if (!existsSync(path)) return [];
+    try {
+      const raw = JSON.parse(readFileSync(path, "utf-8")) as WatchdogAlert[];
+      return status ? raw.filter(a => a.status === status) : raw;
+    } catch { return []; }
+  }
+
+  async getAnalystInsights(filters: { priority?: "high" | "medium" | "low"; status?: string; limit?: number } = {}): Promise<AnalystInsight[]> {
+    const path = resolve(this.dataDir as string, "analyst-insights.json");
+    if (!existsSync(path)) return [];
+    try {
+      let raw = JSON.parse(readFileSync(path, "utf-8")) as AnalystInsight[];
+      if (filters.priority) raw = raw.filter(i => i.priority === filters.priority);
+      if (filters.status)   raw = raw.filter(i => i.status === filters.status);
+      return raw.slice(0, filters.limit ?? 20);
+    } catch { return []; }
+  }
+
+  async getOperatorPendingApprovals(): Promise<OperatorPendingApproval[]> {
+    const path = resolve(this.dataDir as string, "operator-pending-approvals.json");
+    if (!existsSync(path)) return [];
+    try {
+      return JSON.parse(readFileSync(path, "utf-8")) as OperatorPendingApproval[];
+    } catch { return []; }
+  }
+
+  // ── Analytics & Data Governance ───────────────────────────────────────────
+  // File mode cannot run live BigQuery queries. These return "not available"
+  // stubs that tell the user to enable BigQuery mode.
+
+  async queryAccountJourney(
+    account_domain: string,
+    _lookback_days: number,
+    _conversion_type?: string
+  ): Promise<{ account_domain: string; entity_count: number; touchpoints: object[]; conversions: object[]; path_summary: object } | null> {
+    const agentUrl = process.env.PAID_MEDIA_AGENT_URL;
+    if (agentUrl) {
+      try {
+        const res = await fetch(`${agentUrl}/query/account-journey`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ account_domain, lookback_days: _lookback_days, conversion_type: _conversion_type }),
+        });
+        if (res.ok) return res.json() as Promise<{ account_domain: string; entity_count: number; touchpoints: object[]; conversions: object[]; path_summary: object }>;
+      } catch { /* fall through */ }
+    }
+    console.error("[FileAdapter] queryAccountJourney requires BigQuery mode (BIGQUERY_PROJECT_ID) or PAID_MEDIA_AGENT_URL");
+    return null;
+  }
+
+  async getSignalCaptureRates(_hours_back: number, _platform?: string): Promise<object[]> {
+    // Read from cached watchdog_capture_rate_log file if present
+    const path = resolve(this.dataDir, "watchdog-capture-rates.json");
+    if (existsSync(path)) {
+      try {
+        const raw = JSON.parse(readFileSync(path, "utf-8")) as object[];
+        return _platform ? raw.filter((r) => (r as Record<string, unknown>)["platform"] === _platform) : raw;
+      } catch { /* fall through */ }
+    }
+    return [];
+  }
+
+  async getCrmNullFieldStats(_since_hours: number) {
+    // Check watchdog alerts for null_crm_fields type as a proxy
+    const alerts = await this.getWatchdogAlerts("open");
+    const nullAlert = alerts.find((a) => a.alert_type === "null_crm_fields");
+    if (nullAlert) {
+      return {
+        source:        "watchdog_alert_cache",
+        hours_sampled: _since_hours,
+        total_leads:   0,
+        null_media_ids: 0,
+        null_pct:      nullAlert.metric_value ?? 0,
+        threshold_pct: nullAlert.threshold_value ?? 5,
+        breach:        nullAlert.status === "open",
+      };
+    }
+    return null;
+  }
+
+  // ── Reporting Views ───────────────────────────────────────────────────────
+  // All reporting view methods require BigQuery mode. In file mode they return
+  // empty results and log a clear message. Enable by setting BIGQUERY_PROJECT_ID.
+
+  private _bqRequired(method: string): never[] {
+    console.error(`[FileAdapter] ${method} requires BigQuery mode. Set BIGQUERY_PROJECT_ID to enable.`);
+    return [];
+  }
+
+  async getCampaignPerformanceReport(_filters?: {
+    platform?: string; team_id?: string; funnel_stage?: string;
+    status?: string; date_from?: string; date_to?: string;
+  }): Promise<object[]> { return this._bqRequired("getCampaignPerformanceReport"); }
+
+  async getPacingReport(_filters?: {
+    platform?: string; team_id?: string;
+    pacing_status?: "overpacing" | "underpacing" | "on_pace" | "no_budget_data";
+    funnel_stage?: string;
+  }): Promise<object[]> { return this._bqRequired("getPacingReport"); }
+
+  async getRoasComparison(_filters?: {
+    platform?: string; channel?: string; conversion_type?: string;
+  }): Promise<object[]> { return this._bqRequired("getRoasComparison"); }
+
+  async getChannelEfficiency(): Promise<object[]> { return this._bqRequired("getChannelEfficiency"); }
+
+  async getAdPerformance(_filters?: {
+    campaign_id?: string; platform?: string; creative_format?: string; min_spend?: number;
+  }): Promise<object[]> { return this._bqRequired("getAdPerformance"); }
+
+  async getKeywordPerformance(_filters?: {
+    campaign_id?: string; platform?: string; min_spend?: number;
+    low_quality_score?: boolean; lost_is_budget?: boolean;
+  }): Promise<object[]> { return this._bqRequired("getKeywordPerformance"); }
+
+  async getDailyPerformance(_filters?: {
+    campaign_id?: string; platform?: string; team_id?: string;
+    date_from?: string; date_to?: string; group_by?: "day" | "week" | "month";
+  }): Promise<object[]> { return this._bqRequired("getDailyPerformance"); }
+
+  // ── Account-Based Analytics ───────────────────────────────────────────────
+  // All account analytics methods require BigQuery mode.
+
+  async getCompanyProfile(_company_domain: string): Promise<object | null> {
+    console.error("[FileAdapter] getCompanyProfile requires BigQuery mode. Set BIGQUERY_PROJECT_ID to enable.");
+    return null;
+  }
+
+  async getTargetAccountFunnel(_filters?: {
+    account_tier?: "tier_1" | "tier_2" | "tier_3"; crm_pipeline_stage?: string;
+    intent_spiking?: boolean; is_suppressed_tofu?: boolean;
+    min_sessions_30d?: number; limit?: number;
+  }): Promise<object[]> { return this._bqRequired("getTargetAccountFunnel"); }
+
+  async getCompanySessions(_company_domain: string, _lookback_days?: number): Promise<object[]> {
+    return this._bqRequired("getCompanySessions");
+  }
+
+  async getCompanyEngagement(_company_domain: string, _period_type?: string): Promise<object | null> {
+    console.error("[FileAdapter] getCompanyEngagement requires BigQuery mode. Set BIGQUERY_PROJECT_ID to enable.");
+    return null;
+  }
+
+  async getDarkFunnelCoverage(_filters?: {
+    account_tier?: "tier_1" | "tier_2" | "tier_3";
+    web_presence_status?: "dark" | "lapsed" | "visible";
+    crm_pipeline_stage?: string;
+  }): Promise<object[]> { return this._bqRequired("getDarkFunnelCoverage"); }
+
+  async getTargetAccountActivity(_company_domain: string, _lookback_days?: number): Promise<object[]> {
+    return this._bqRequired("getTargetAccountActivity");
+  }
+
+  // ── Interactive Media Actions ─────────────────────────────────────────────
+
+  async pushAudienceSuppression(
+    platform: string,
+    advertiser_id: string,
+    audience_list_id: string,
+    domains: string[],
+    rationale: string
+  ): Promise<object> {
+    const agentUrl = process.env.PAID_MEDIA_AGENT_URL;
+    if (agentUrl) {
+      try {
+        const res = await fetch(`${agentUrl}/action/audience-suppression`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ platform, advertiser_id, audience_list_id, domains, rationale }),
+        });
+        return res.json() as object;
+      } catch (err) {
+        return { executed: false, message: `Agent unreachable: ${err instanceof Error ? err.message : String(err)}` };
+      }
+    }
+    return {
+      executed:      false,
+      queued:        true,
+      message:       "PAID_MEDIA_AGENT_URL not configured. Action logged as pending. Set the env var to enable autonomous execution.",
+      pending_action: { platform, advertiser_id, audience_list_id, domain_count: domains.length, rationale },
+    };
+  }
+
+  async reallocateMediaBudget(
+    platform: string,
+    advertiser_id: string,
+    source_campaign_id: string,
+    target_campaign_id: string,
+    amount_usd: number,
+    rationale: string
+  ): Promise<object> {
+    const agentUrl = process.env.PAID_MEDIA_AGENT_URL;
+    if (agentUrl) {
+      try {
+        const res = await fetch(`${agentUrl}/action/reallocate-budget`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ platform, advertiser_id, source_campaign_id, target_campaign_id, amount_usd, rationale }),
+        });
+        return res.json() as object;
+      } catch (err) {
+        return { executed: false, message: `Agent unreachable: ${err instanceof Error ? err.message : String(err)}` };
+      }
+    }
+    return {
+      executed:      false,
+      queued:        true,
+      message:       "PAID_MEDIA_AGENT_URL not configured. Action logged as pending.",
+      pending_action: { platform, source_campaign_id, target_campaign_id, amount_usd, rationale },
+    };
+  }
+
+  async triggerAgentRun(
+    agent: "watchdog" | "analyst" | "operator",
+    reason: string
+  ): Promise<{ triggered: boolean; job_id?: string; message: string }> {
+    const agentUrl = process.env.PAID_MEDIA_AGENT_URL;
+    if (!agentUrl) {
+      return {
+        triggered: false,
+        message: "PAID_MEDIA_AGENT_URL is not configured. Set this env var to the base URL of your deployed paid-media-agent service.",
+      };
+    }
+    try {
+      const res = await fetch(`${agentUrl}/run?agent=${agent}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+      const body = await res.json() as { job_id?: string; result?: string };
+      return {
+        triggered: res.ok,
+        job_id: body.job_id,
+        message: res.ok
+          ? `${agent} agent triggered successfully.${body.job_id ? ` Job ID: ${body.job_id}` : ""}`
+          : `Agent trigger failed: HTTP ${res.status}`,
+      };
+    } catch (err) {
+      return {
+        triggered: false,
+        message: `Failed to reach agent service: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
   }
 }
