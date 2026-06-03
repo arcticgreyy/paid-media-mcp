@@ -2,3 +2,8 @@ node_modules/
 dist/
 *.env
 .env*
+
+# Private skills — proprietary prompt files, never commit
+**/skills/private_*.md
+**/private_config/
+**/*_private.json
