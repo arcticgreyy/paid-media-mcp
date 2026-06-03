@@ -23,6 +23,7 @@ import { testingTools } from "./tools/testing.js";
 import { audienceTools } from "./tools/audiences.js";
 import { measurementTools } from "./tools/measurement.js";
 import { platformTools } from "./tools/platforms.js";
+import { analyticsTools } from "./tools/analytics.js";
 import { registerResources } from "./resources/index.js";
 import { prompts } from "./prompts/index.js";
 
@@ -49,6 +50,7 @@ const allTools = [
   ...audienceTools(adapter),
   ...measurementTools(adapter),
   ...platformTools(adapter),
+  ...analyticsTools(),
 ];
 
 const toolMap = new Map(allTools.map((t) => [t.name, t]));
