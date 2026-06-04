@@ -7,6 +7,58 @@
 import type { PaidMediaAdapter } from "../adapters/base.js";
 
 export const registerResources = (adapter: PaidMediaAdapter) => [
+  // ── System context ────────────────────────────────────────────────────────
+  // Read this first. Tells Claude what data is available and how to use tools.
+  {
+    uri: "paid-media://system",
+    name: "Paid Media MCP — System Context",
+    description:
+      "Start here. Describes what data this MCP server has, what tools are available, " +
+      "and how to answer paid media questions without asking for credentials.",
+    mimeType: "text/plain",
+    handler: async () => {
+      const bqMode = !!process.env.BIGQUERY_PROJECT_ID;
+      const project = process.env.BIGQUERY_PROJECT_ID ?? "not configured";
+      const dataset = process.env.BIGQUERY_DATASET_ID ?? "paid_media";
+
+      return `# Paid Media MCP — System Context
+
+## What this server is
+This MCP server gives you direct, read access to a live BigQuery paid media dataset.
+You do NOT need to ask the user for credentials, API keys, or Google Ads / Meta / LinkedIn
+authentication. All data is already in BigQuery and available through the tools below.
+
+## Data mode
+Mode:    ${bqMode ? "BigQuery (live)" : "File (demo)"}
+Project: ${project}
+Dataset: ${dataset}
+
+## What data is available
+- **Campaigns** (16 active): Google Ads, Meta, LinkedIn, TikTok, Reddit — use list_campaigns
+- **Daily spend & performance** (90 days): spend, impressions, clicks, conversions by campaign/geo — use get_daily_performance
+- **Sessions** (10,910 rows): GA4 sessions with click ID signals (gclid, fbclid, etc.) — use analytics tools
+- **CRM leads** (499 rows): lead source, attribution tokens, opportunity pipeline — use attribution tools
+- **Attribution results**: multi-touch attribution channel summaries — use get_attribution_results
+- **Watchdog alerts**: data quality alerts from the autonomous Watchdog agent — use get_watchdog_alerts
+- **Analyst insights**: findings from the autonomous Analyst agent — use get_analyst_insights
+- **Account-based analytics**: company profiles, engagement, target account activity — use account analytics tools
+
+## How to answer common questions — use tools immediately, never ask for credentials
+- "Google Ads performance last 7 days" → call get_daily_performance(platform="google_ads", date_from=..., date_to=...)
+- "Which campaign has the best ROAS?" → call get_campaign_performance_report or get_roas_comparison
+- "What are the active alerts?" → call get_watchdog_alerts(status="open")
+- "Attribution breakdown" → call get_attribution_results or compare_attribution_models
+- "Pacing this month" → call get_pacing_report
+- "Which companies are visiting our site?" → call get_target_account_funnel or get_company_profile
+
+## Key rule
+**Always call the relevant tool first.** Never ask the user to authenticate, export data,
+or provide campaign IDs. The data is here. If a tool returns empty results, say so and
+explain what data you'd need to populate it — do not ask for credentials.
+`;
+    },
+  },
+
   {
     uri: "paid-media://overview",
     name: "Company & Team Overview",

@@ -2,14 +2,13 @@
 
 ## Part of the Paid Media AI Suite
 
-This is one component of a four-part system. See [paid-media-suite](https://github.com/arcticgreyy/paid-media-suite) for the full architecture, setup guide, and AGENT.md.
+This is one component of a three-part system. See [paid-media-agent](https://github.com/arcticgreyy/paid-media-agent) for the full architecture, setup guide, and AGENT.md.
 
 | Component | Role |
 |-----------|------|
-| **[paid-media-schema](https://github.com/arcticgreyy/paid-media-schema)** | Shared data contract — BigQuery DDL and identity namespace registry |
+| **[paid-media-agent](https://github.com/arcticgreyy/paid-media-agent)** | Autonomous agents + BigQuery schema DDL — Watchdog, Analyst, Operator on Cloud Run; schema in `schema/bigquery/` |
 | **[paid-media-mcp](https://github.com/arcticgreyy/paid-media-mcp)** ← you are here | Interactive data server — connects Claude to campaign data and agent outputs |
-| **[paid-media-agent](https://github.com/arcticgreyy/paid-media-agent)** | Autonomous agents — Watchdog, Analyst, Operator on Cloud Run |
-| **[skills](https://github.com/arcticgreyy/skills)** | Interactive skill library — 16 paid-media skills for Claude Code |
+| **[skills](https://github.com/arcticgreyy/skills)** | Interactive skill library — 16+ paid-media skills for Claude Code |
 
 
 # Paid Media MCP
@@ -1024,14 +1023,78 @@ Tools are actions Claude takes to retrieve your data.
 | `get_platform_org_defaults` | All org-level defaults for a platform: naming conventions, standard field values, notes |
 | `get_bulk_upload_instructions` | Step-by-step instructions for generating and uploading a bulk file for DV360 SDF, SA360 Bulksheet, or CM360 Trafficking Sheet |
 
+#### Analytics & live data tools
+
+These tools query the live BigQuery data layer on-demand — the same data the autonomous agents monitor on a schedule.
+
+| Tool | What it does |
+|---|---|
+| `get_daily_performance` | Daily spend + impressions + clicks + conversions by platform and campaign for a date range |
+| `get_ad_performance` | Ad-level (creative-level) performance metrics — identify top and bottom performers within a campaign |
+| `get_keyword_performance` | Keyword-level performance for search campaigns — spend, clicks, conversions, CPC, Quality Score |
+| `get_pacing_report` | Budget pacing status across active campaigns — expected vs. actual spend, over/under-pacing flags |
+| `get_channel_efficiency` | Cross-channel efficiency ranking — ROAS, CPA, and marginal ROI comparison by platform |
+| `get_roas_comparison` | ROAS by campaign and channel side-by-side, with trend indicators vs. the prior period |
+| `get_campaign_performance_report` | Full campaign performance report assembled for a specified date range and campaign set |
+
+#### Account-based analytics tools
+
+Account-level B2B attribution — IP-resolved company profiles, session journeys, and pipeline funnel tracking.
+
+| Tool | What it does |
+|---|---|
+| `get_company_profile` | IP-resolved firmographic profile for a target account: company name, domain, industry, employee count, intent score |
+| `get_company_sessions` | All website sessions attributed to a specific company domain, with session depth and UTM attribution |
+| `get_company_engagement` | Engagement summary for a company across all paid channels — touches, sessions, funnel stage |
+| `get_target_account_activity` | Recent activity for a target account list — signals pipeline accounts are engaging with paid media |
+| `get_target_account_funnel` | Funnel stage distribution for a target account list: awareness → engaged → MQL → opportunity |
+| `get_dark_funnel_coverage` | Coverage of target accounts in identity graph — which accounts are visible vs. dark (no match) |
+
+#### Identity & signal tools
+
+| Tool | What it does |
+|---|---|
+| `list_identity_namespaces` | All registered signal types (gclid, fbclid, li_fat_id, ttclid, GA4 client_id, etc.) with capture quality and coverage |
+| `get_identity_namespace` | Full details for one namespace: signal type, platform, match confidence, and schema |
+| `get_identity_signal_coverage` | Which signals are being captured for a given platform set — identifies gaps |
+| `query_account_journey` | Full multi-touch attribution path for a specific company domain across all channels |
+
+#### Data governance tools
+
+| Tool | What it does |
+|---|---|
+| `get_watchdog_alerts` | Active data quality alerts from the Watchdog agent — signal failures, CRM anomalies, forensic trap triggers |
+| `check_signal_capture_health` | Live capture rates for all monitored identity namespaces with trend indicators |
+| `detect_crm_null_fields` | CRM records missing paid media identifiers — surfaces attribution gaps at the lead level |
+
+#### Agent integration tools
+
+| Tool | What it does |
+|---|---|
+| `get_analyst_insights` | Findings and recommendations from the most recent Analyst agent run |
+| `get_attribution_results` | Multi-touch attribution credit output by channel from the latest model run |
+| `get_attribution_run_history` | History of all attribution model runs with model type, date, and status |
+| `get_pending_approvals` | Operator agent actions awaiting human approval before execution |
+| `trigger_agent_run` | Trigger an on-demand run of Watchdog, Analyst, or Operator |
+
+#### Media action tools
+
+| Tool | What it does |
+|---|---|
+| `push_audience_suppression` | Add company domains to platform exclusion lists (DV360, Meta, LinkedIn) — suppress pipeline accounts from top-of-funnel acquisition |
+| `reallocate_media_budget` | Shift budget between campaigns across platforms (DV360, SA360, Meta, LinkedIn) with guardrail enforcement |
+
 ---
 
 ### Resources
 
 Resources are documents Claude can read as context (similar to attaching a file).
 
+#### Org knowledge resources
+
 | Resource URI | What it contains |
 |---|---|
+| `paid-media://system` | Server mode (BigQuery vs. JSON), connected data sources, and tool routing guide — Claude reads this first to understand the deployment context |
 | `paid-media://overview` | Company metadata + all teams + all accounts |
 | `paid-media://campaigns` | All campaigns |
 | `paid-media://team-structure` | Teams enriched with their members |
@@ -1042,6 +1105,22 @@ Resources are documents Claude can read as context (similar to attaching a file)
 | `paid-media://audience-library` | Full audience library: 1P, providers, LAL strategy, 3P layers |
 | `paid-media://measurement-setup` | Full tracking stack: TMS, pixels, APIs, CM360, data capture |
 | `paid-media://gmp-platforms` | DV360 SDF v7, SA360 Bulksheet, and CM360 Trafficking Sheet schemas with org defaults |
+
+#### Schema & data contract resources
+
+| Resource URI | What it contains |
+|---|---|
+| `paid-media://schema/identity` | Identity graph table schemas — entity, signal, and namespace definitions for text-to-SQL |
+| `paid-media://schema/attribution` | Attribution table schemas, credit formula weights, and model run structure |
+| `paid-media://schema/reporting` | Reporting view schemas — pre-built cross-channel metrics structure |
+| `paid-media://config/attribution-milestones` | B2B pipeline stage definitions, conversion type values, and model credit weights |
+
+#### Live data resources
+
+| Resource URI | What it contains |
+|---|---|
+| `paid-media://account-analytics/overview` | Account-based analytics summary — coverage stats, top engaged accounts, dark funnel gap |
+| `paid-media://agent-status` | Current status of all three autonomous agents (Watchdog, Analyst, Operator) with last run timestamps |
 
 ---
 
@@ -1273,21 +1352,24 @@ Or on GCP infrastructure, attach a service account with BigQuery Data Viewer acc
 
 **Expected table schemas:**
 
+The BigQueryAdapter targets the `paid-media-agent` canonical schema. If using that deployment, the tables already exist. If connecting your own warehouse, match this structure or edit the queries in `bigquery-adapter.ts`.
+
 ```sql
--- campaigns
-CREATE TABLE campaigns (
-  id STRING, name STRING, account_id STRING, team_id STRING,
-  platform STRING, status STRING, objective STRING, funnel_stage STRING,
-  budget_amount FLOAT64, budget_type STRING, budget_currency STRING,
+-- platform_campaigns
+CREATE TABLE platform_campaigns (
+  campaign_id STRING, campaign_name STRING, platform STRING,
+  account_id STRING, team_id STRING, status STRING,
+  objective STRING, funnel_stage STRING,
+  budget_amount NUMERIC, budget_type STRING, budget_currency STRING,
   start_date DATE, end_date DATE, notes STRING,
   tags STRING  -- comma-separated list
 );
 
--- daily_performance
-CREATE TABLE daily_performance (
-  date DATE, campaign_id STRING,
-  impressions INT64, clicks INT64, spend FLOAT64,
-  conversions INT64, conversion_value FLOAT64
+-- platform_daily_spend
+CREATE TABLE platform_daily_spend (
+  date DATE, campaign_id STRING, platform STRING,
+  impressions INT64, clicks INT64, spend NUMERIC,
+  conversions INT64, conversion_value NUMERIC
 );
 
 -- benchmarks (optional)
@@ -1297,6 +1379,8 @@ CREATE TABLE benchmarks (
   avg_cpa FLOAT64, avg_roas FLOAT64
 );
 ```
+
+> Note: Financial columns use `NUMERIC` (not `FLOAT64`) throughout the canonical schema to prevent floating-point rounding on currency values.
 
 **Wire it up in `src/index.ts`:**
 
@@ -1489,7 +1573,7 @@ paid-media-mcp/
 │   │   └── measurement.ts        # get_measurement_overview, get_tag_management, list_pixels_and_tags,
 │   │                             #   list_conversion_apis, get_cm360_setup, get_website_data_capture, list_measurement_partners
 │   ├── resources/
-│   │   └── index.ts              # 9 readable MCP resources
+│   │   └── index.ts              # 17 MCP resources (org knowledge, schema contracts, live agent data)
 │   └── prompts/
 │       └── index.ts              # 9 pre-built prompt templates
 ├── data/
@@ -1520,4 +1604,6 @@ Issues and pull requests welcome. If you build an adapter for a specific platfor
 
 ## License
 
-MIT
+Business Source License 1.1 (BSL 1.1). Persistent attribution required.
+See [LICENSE](./LICENSE) and [NOTICE](./NOTICE) for terms.
+© 2026 @arcticgreyy

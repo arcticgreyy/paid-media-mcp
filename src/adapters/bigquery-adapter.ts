@@ -776,45 +776,62 @@ export class BigQueryAdapter extends FileAdapter {
     date_to?: string;
     group_by?: "day" | "week" | "month";
   } = {}): Promise<object[]> {
+    // Queries platform_daily_spend directly (deployed, always available).
+    // Falls back gracefully without the v_daily_performance view dependency.
     const bq = await this.client();
     const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
+
     const conditions: string[] = [];
-    if (filters.campaign_id) conditions.push(`campaign_id = '${filters.campaign_id}'`);
-    if (filters.platform)    conditions.push(`platform = '${filters.platform}'`);
-    if (filters.team_id)     conditions.push(`team_id = '${filters.team_id}'`);
-    if (filters.date_from)   conditions.push(`date >= '${filters.date_from}'`);
-    if (filters.date_to)     conditions.push(`date <= '${filters.date_to}'`);
+    if (filters.campaign_id) conditions.push(`s.campaign_id = '${filters.campaign_id}'`);
+    if (filters.platform)    conditions.push(`s.platform = '${filters.platform}'`);
+    if (filters.date_from)   conditions.push(`s.date >= '${filters.date_from}'`);
+    if (filters.date_to)     conditions.push(`s.date <= '${filters.date_to}'`);
+    // team_id not on platform_daily_spend — skip silently
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
-    // Optional time aggregation
-    const groupByClause = filters.group_by === "week"  ? "GROUP BY week_start, platform, channel, team_id, brand" :
-                          filters.group_by === "month" ? "GROUP BY month_start, platform, channel, team_id, brand" :
-                          "";
-    const selectClause = filters.group_by
-      ? `
-        ${filters.group_by === "week" ? "week_start AS period" : "month_start AS period"},
-        platform, channel, team_id, brand,
-        SUM(spend) AS spend, SUM(impressions) AS impressions, SUM(clicks) AS clicks,
-        SUM(video_views) AS video_views, SUM(engagements) AS engagements,
-        SUM(platform_conversions) AS platform_conversions,
-        SUM(platform_conversion_value) AS platform_conversion_value,
-        SAFE_DIVIDE(SUM(clicks), SUM(impressions)) AS ctr,
-        SAFE_DIVIDE(SUM(spend), SUM(clicks)) AS cpc,
-        SAFE_DIVIDE(SUM(spend) * 1000, SUM(impressions)) AS cpm
-      `
-      : "*";
+    const groupBy = filters.group_by ?? "day";
+    const isAggregated = groupBy === "week" || groupBy === "month";
 
+    const periodExpr = groupBy === "week"
+      ? "DATE_TRUNC(s.date, WEEK(MONDAY))"
+      : groupBy === "month"
+      ? "DATE_TRUNC(s.date, MONTH)"
+      : "s.date";
+
+    // Always GROUP BY — for "day" we group by date which gives one row per campaign/day.
+    // This keeps the SELECT consistent (all metrics use SUM) and avoids BigQuery
+    // "neither grouped nor aggregated" errors.
     try {
       const [rows] = await bq.query(`
-        SELECT ${selectClause}
-        FROM ${ds}.v_daily_performance
+        SELECT
+          ${periodExpr}                          AS period,
+          s.platform,
+          s.campaign_id,
+          MAX(c.campaign_name)                   AS campaign_name,
+          MAX(c.objective)                       AS objective,
+          SUM(CAST(s.spend AS FLOAT64))          AS spend,
+          SUM(s.impressions)                     AS impressions,
+          SUM(s.clicks)                          AS clicks,
+          SUM(s.platform_conversions)            AS platform_conversions,
+          SAFE_DIVIDE(SUM(s.clicks),
+            NULLIF(SUM(s.impressions), 0))       AS ctr,
+          SAFE_DIVIDE(SUM(CAST(s.spend AS FLOAT64)),
+            NULLIF(SUM(s.clicks), 0))            AS cpc,
+          SAFE_DIVIDE(SUM(CAST(s.spend AS FLOAT64)) * 1000,
+            NULLIF(SUM(s.impressions), 0))       AS cpm
+        FROM ${ds}.platform_daily_spend s
+        LEFT JOIN ${ds}.platform_campaigns c
+               ON s.campaign_id = c.campaign_id
         ${where}
-        ${groupByClause}
-        ORDER BY ${filters.group_by === "week" ? "week_start" : filters.group_by === "month" ? "month_start" : "date"} DESC
+        GROUP BY period, s.platform, s.campaign_id
+        ORDER BY period DESC
         LIMIT 10000
       `);
       return rows as object[];
-    } catch { return []; }
+    } catch (err) {
+      console.error("[paid-media-mcp] getDailyPerformance error:", err);
+      return [];
+    }
   }
 
   // ── Account-Based Analytics (07_account_analytics.sql) ───────────────────
