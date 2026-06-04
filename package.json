@@ -3,14 +3,16 @@
   "version": "2.0.0",
   "description": "MCP server for paid media teams — connects Claude to campaigns, performance data, attribution results, identity signals, and autonomous agent outputs",
   "type": "module",
-  "main": "dist/index.js",
+  "main": "dist/src/index.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "node dist/src/index.js",
     "dev": "tsx src/index.ts",
-    "watch": "tsc --watch"
+    "watch": "tsc --watch",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@google-cloud/bigquery": "^8.3.1",
     "@modelcontextprotocol/sdk": "^1.12.0",
     "zod": "^3.25.0"
   },

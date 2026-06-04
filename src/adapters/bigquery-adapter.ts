@@ -90,11 +90,38 @@ import type {
 
 // Lazy-load @google-cloud/bigquery so the server starts even if the package
 // isn't installed. Only throws when you actually try to use a BQ-backed method.
+//
+// Authentication priority:
+//   1. GOOGLE_APPLICATION_CREDENTIALS_JSON env var — service account JSON,
+//      raw or base64-encoded. Required on Vercel and other non-GCP hosts.
+//   2. Application Default Credentials (ADC) — automatic on Cloud Run / GCE
+//      when the env var is absent. Also works locally after `gcloud auth
+//      application-default login`.
 async function getBigQuery(projectId: string): Promise<BigQueryClient> {
   try {
-    const { BigQuery } = await import("@google-cloud/bigquery" as string as never) as { BigQuery: new (opts: { projectId: string }) => BigQueryClient };
+    const { BigQuery } = await import("@google-cloud/bigquery" as string as never) as {
+      BigQuery: new (opts: { projectId: string; credentials?: object }) => BigQueryClient
+    };
+
+    const credJson = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+    if (credJson) {
+      // Non-GCP hosts (Vercel, etc.): decode base64 or use raw JSON
+      const raw = credJson.trimStart().startsWith("{")
+        ? credJson
+        : Buffer.from(credJson, "base64").toString("utf-8");
+      const credentials = JSON.parse(raw) as object;
+      return new BigQuery({ projectId, credentials });
+    }
+
+    // Cloud Run / local with gcloud ADC — no explicit credentials needed
     return new BigQuery({ projectId });
-  } catch {
+  } catch (err) {
+    if (err instanceof SyntaxError) {
+      throw new Error(
+        "GOOGLE_APPLICATION_CREDENTIALS_JSON is set but is not valid JSON. " +
+        "Provide the raw service account JSON or its base64 encoding."
+      );
+    }
     throw new Error(
       "BigQueryAdapter requires @google-cloud/bigquery. " +
       "Run: npm install @google-cloud/bigquery"
