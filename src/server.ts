@@ -27,6 +27,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 
+import { dataDir, resolveBqEnv, validateEnv } from "./config.js";
 import { FileAdapter } from "./adapters/file-adapter.js";
 import { BigQueryAdapter } from "./adapters/bigquery-adapter.js";
 import { campaignTools } from "./tools/campaigns.js";
@@ -50,15 +51,14 @@ import { prompts } from "./prompts/index.js";
 
 // ── Adapter factory ───────────────────────────────────────────────────────────
 
-const DATA_DIR = process.env.PAID_MEDIA_DATA_DIR ?? "./data";
-
 /**
- * Auto-selects BigQueryAdapter when BIGQUERY_PROJECT_ID is set;
+ * Auto-selects BigQueryAdapter when a GCP project is configured;
  * falls back to FileAdapter for local / file-only setups.
  *
- * BigQuery mode env vars:
- *   BIGQUERY_PROJECT_ID              — GCP project ID (required for BQ mode)
- *   BIGQUERY_DATASET_ID              — dataset name (default: "paid_media")
+ * BigQuery mode env vars (canonical — legacy BIGQUERY_PROJECT_ID /
+ * BIGQUERY_DATASET_ID still accepted, see src/config.ts):
+ *   PAID_MEDIA_GCP_PROJECT           — GCP project ID (required for BQ mode)
+ *   PAID_MEDIA_BQ_DATASET            — dataset name (default: "paid_media")
  *   GOOGLE_APPLICATION_CREDENTIALS_JSON — service account JSON, raw or base64
  *                                        (required on Vercel / non-GCP hosts;
  *                                         omit on Cloud Run to use ADC)
@@ -68,17 +68,15 @@ const DATA_DIR = process.env.PAID_MEDIA_DATA_DIR ?? "./data";
  *   PAID_MEDIA_AGENT_URL — base URL of deployed paid-media-agent Cloud Run service
  */
 export function buildAdapter(): FileAdapter | BigQueryAdapter {
-  const projectId = process.env.BIGQUERY_PROJECT_ID;
+  validateEnv(); // throws on broken config — fail at startup, not query time
+  const { projectId, dataset } = resolveBqEnv();
+  const dir = dataDir();
   if (projectId) {
     console.error(`[paid-media-mcp] BigQueryAdapter (project: ${projectId})`);
-    return new BigQueryAdapter({
-      projectId,
-      dataset: process.env.BIGQUERY_DATASET_ID ?? "paid_media",
-      dataDir: DATA_DIR,
-    });
+    return new BigQueryAdapter({ projectId, dataset, dataDir: dir });
   }
-  console.error(`[paid-media-mcp] FileAdapter (data dir: ${DATA_DIR})`);
-  return new FileAdapter(DATA_DIR);
+  console.error(`[paid-media-mcp] FileAdapter (data dir: ${dir})`);
+  return new FileAdapter(dir);
 }
 
 // ── Server factory ────────────────────────────────────────────────────────────

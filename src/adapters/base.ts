@@ -154,7 +154,7 @@ export interface PaidMediaAdapter {
   // ── Agent Outputs ──────────────────────────────────────────────────────────
 
   /** Active data quality alerts from the Watchdog agent. */
-  getWatchdogAlerts(status?: "open" | "acknowledged" | "resolved"): Promise<WatchdogAlert[]>;
+  getWatchdogAlerts(status?: "open" | "acknowledged" | "resolved" | "suppressed"): Promise<WatchdogAlert[]>;
 
   /** Insights and recommendations from the Analyst agent. */
   getAnalystInsights(filters?: { priority?: "high" | "medium" | "low"; status?: string; limit?: number }): Promise<AnalystInsight[]>;

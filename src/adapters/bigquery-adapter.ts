@@ -375,7 +375,7 @@ export class BigQueryAdapter extends FileAdapter {
 
   // ── Agent Outputs ───────────────────────────────────────────────────────────
 
-  override async getWatchdogAlerts(status?: "open" | "acknowledged" | "resolved"): Promise<WatchdogAlert[]> {
+  override async getWatchdogAlerts(status?: "open" | "acknowledged" | "resolved" | "suppressed"): Promise<WatchdogAlert[]> {
     const bq = await this.client();
     try {
       const where = status ? `WHERE status = '${status}'` : `WHERE status IN ('open', 'acknowledged')`;

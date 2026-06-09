@@ -237,7 +237,7 @@ export class CompositeAdapter implements PaidMediaAdapter {
 
   // ── Agent Outputs ──────────────────────────────────────────────────────────
 
-  getWatchdogAlerts(status?: "open" | "acknowledged" | "resolved") { return this.cfg.default.getWatchdogAlerts(status); }
+  getWatchdogAlerts(status?: "open" | "acknowledged" | "resolved" | "suppressed") { return this.cfg.default.getWatchdogAlerts(status); }
   getAnalystInsights(filters?: { priority?: "high" | "medium" | "low"; status?: string; limit?: number }) { return this.cfg.default.getAnalystInsights(filters); }
   getOperatorPendingApprovals() { return this.cfg.default.getOperatorPendingApprovals(); }
   triggerAgentRun(agent: "watchdog" | "analyst" | "operator", reason: string) { return this.cfg.default.triggerAgentRun(agent, reason); }

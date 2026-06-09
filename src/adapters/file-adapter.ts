@@ -7,6 +7,7 @@
 import { readFileSync } from "fs";
 import { existsSync } from "fs";
 import { resolve } from "path";
+import { agentBaseUrl } from "../config.js";
 import type { PaidMediaAdapter, CampaignFilters, PerformanceFilters } from "./base.js";
 import type {
   Account,
@@ -48,6 +49,19 @@ function loadJson<T>(filePath: string): T {
     throw new Error(`Data file not found: ${abs}`);
   }
   return JSON.parse(readFileSync(abs, "utf-8")) as T;
+}
+
+/**
+ * Reads a non-2xx agent response and formats "HTTP <status>: <body detail>"
+ * so tool callers see the real failure instead of a generic message.
+ */
+async function agentErrorDetail(res: Response): Promise<string> {
+  let detail = "";
+  try {
+    const text = await res.text();
+    detail = text.slice(0, 500);
+  } catch { /* body unreadable — status alone will have to do */ }
+  return `HTTP ${res.status}${detail ? `: ${detail}` : ""}`;
 }
 
 function matchesDateRange(date: string, from?: string, to?: string): boolean {
@@ -355,7 +369,7 @@ export class FileAdapter implements PaidMediaAdapter {
 
   // ── Agent Outputs ───────────────────────────────────────────────────────────
 
-  async getWatchdogAlerts(status?: "open" | "acknowledged" | "resolved"): Promise<WatchdogAlert[]> {
+  async getWatchdogAlerts(status?: "open" | "acknowledged" | "resolved" | "suppressed"): Promise<WatchdogAlert[]> {
     const path = resolve(this.dataDir as string, "watchdog-alerts.json");
     if (!existsSync(path)) return [];
     try {
@@ -392,7 +406,7 @@ export class FileAdapter implements PaidMediaAdapter {
     _lookback_days: number,
     _conversion_type?: string
   ): Promise<{ account_domain: string; entity_count: number; touchpoints: object[]; conversions: object[]; path_summary: object } | null> {
-    const agentUrl = process.env.PAID_MEDIA_AGENT_URL;
+    const agentUrl = agentBaseUrl();
     if (agentUrl) {
       try {
         const res = await fetch(`${agentUrl}/query/account-journey`, {
@@ -401,9 +415,12 @@ export class FileAdapter implements PaidMediaAdapter {
           body: JSON.stringify({ account_domain, lookback_days: _lookback_days, conversion_type: _conversion_type }),
         });
         if (res.ok) return res.json() as Promise<{ account_domain: string; entity_count: number; touchpoints: object[]; conversions: object[]; path_summary: object }>;
-      } catch { /* fall through */ }
+        console.error(`[FileAdapter] queryAccountJourney agent call failed: ${await agentErrorDetail(res)}`);
+      } catch (err) {
+        console.error(`[FileAdapter] queryAccountJourney agent unreachable: ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
-    console.error("[FileAdapter] queryAccountJourney requires BigQuery mode (BIGQUERY_PROJECT_ID) or PAID_MEDIA_AGENT_URL");
+    console.error("[FileAdapter] queryAccountJourney requires BigQuery mode (PAID_MEDIA_GCP_PROJECT) or PAID_MEDIA_AGENT_URL");
     return null;
   }
 
@@ -439,10 +456,10 @@ export class FileAdapter implements PaidMediaAdapter {
 
   // ── Reporting Views ───────────────────────────────────────────────────────
   // All reporting view methods require BigQuery mode. In file mode they return
-  // empty results and log a clear message. Enable by setting BIGQUERY_PROJECT_ID.
+  // empty results and log a clear message. Enable by setting PAID_MEDIA_GCP_PROJECT.
 
   private _bqRequired(method: string): never[] {
-    console.error(`[FileAdapter] ${method} requires BigQuery mode. Set BIGQUERY_PROJECT_ID to enable.`);
+    console.error(`[FileAdapter] ${method} requires BigQuery mode. Set PAID_MEDIA_GCP_PROJECT to enable.`);
     return [];
   }
 
@@ -481,7 +498,7 @@ export class FileAdapter implements PaidMediaAdapter {
   // All account analytics methods require BigQuery mode.
 
   async getCompanyProfile(_company_domain: string): Promise<object | null> {
-    console.error("[FileAdapter] getCompanyProfile requires BigQuery mode. Set BIGQUERY_PROJECT_ID to enable.");
+    console.error("[FileAdapter] getCompanyProfile requires BigQuery mode. Set PAID_MEDIA_GCP_PROJECT to enable.");
     return null;
   }
 
@@ -496,7 +513,7 @@ export class FileAdapter implements PaidMediaAdapter {
   }
 
   async getCompanyEngagement(_company_domain: string, _period_type?: string): Promise<object | null> {
-    console.error("[FileAdapter] getCompanyEngagement requires BigQuery mode. Set BIGQUERY_PROJECT_ID to enable.");
+    console.error("[FileAdapter] getCompanyEngagement requires BigQuery mode. Set PAID_MEDIA_GCP_PROJECT to enable.");
     return null;
   }
 
@@ -519,7 +536,7 @@ export class FileAdapter implements PaidMediaAdapter {
     domains: string[],
     rationale: string
   ): Promise<object> {
-    const agentUrl = process.env.PAID_MEDIA_AGENT_URL;
+    const agentUrl = agentBaseUrl();
     if (agentUrl) {
       try {
         const res = await fetch(`${agentUrl}/action/audience-suppression`, {
@@ -527,9 +544,12 @@ export class FileAdapter implements PaidMediaAdapter {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ platform, advertiser_id, audience_list_id, domains, rationale }),
         });
+        if (!res.ok) {
+          return { executed: false, message: `Agent rejected audience suppression: ${await agentErrorDetail(res)}` };
+        }
         return res.json() as object;
       } catch (err) {
-        return { executed: false, message: `Agent unreachable: ${err instanceof Error ? err.message : String(err)}` };
+        return { executed: false, message: `Agent unreachable at ${agentUrl}: ${err instanceof Error ? err.message : String(err)}` };
       }
     }
     return {
@@ -548,7 +568,7 @@ export class FileAdapter implements PaidMediaAdapter {
     amount_usd: number,
     rationale: string
   ): Promise<object> {
-    const agentUrl = process.env.PAID_MEDIA_AGENT_URL;
+    const agentUrl = agentBaseUrl();
     if (agentUrl) {
       try {
         const res = await fetch(`${agentUrl}/action/reallocate-budget`, {
@@ -556,9 +576,12 @@ export class FileAdapter implements PaidMediaAdapter {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ platform, advertiser_id, source_campaign_id, target_campaign_id, amount_usd, rationale }),
         });
+        if (!res.ok) {
+          return { executed: false, message: `Agent rejected budget reallocation: ${await agentErrorDetail(res)}` };
+        }
         return res.json() as object;
       } catch (err) {
-        return { executed: false, message: `Agent unreachable: ${err instanceof Error ? err.message : String(err)}` };
+        return { executed: false, message: `Agent unreachable at ${agentUrl}: ${err instanceof Error ? err.message : String(err)}` };
       }
     }
     return {
@@ -573,7 +596,7 @@ export class FileAdapter implements PaidMediaAdapter {
     agent: "watchdog" | "analyst" | "operator",
     reason: string
   ): Promise<{ triggered: boolean; job_id?: string; message: string }> {
-    const agentUrl = process.env.PAID_MEDIA_AGENT_URL;
+    const agentUrl = agentBaseUrl();
     if (!agentUrl) {
       return {
         triggered: false,
@@ -586,18 +609,22 @@ export class FileAdapter implements PaidMediaAdapter {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reason }),
       });
+      if (!res.ok) {
+        return {
+          triggered: false,
+          message: `Agent trigger failed: ${await agentErrorDetail(res)}`,
+        };
+      }
       const body = await res.json() as { job_id?: string; result?: string };
       return {
-        triggered: res.ok,
+        triggered: true,
         job_id: body.job_id,
-        message: res.ok
-          ? `${agent} agent triggered successfully.${body.job_id ? ` Job ID: ${body.job_id}` : ""}`
-          : `Agent trigger failed: HTTP ${res.status}`,
+        message: `${agent} agent triggered successfully.${body.job_id ? ` Job ID: ${body.job_id}` : ""}`,
       };
     } catch (err) {
       return {
         triggered: false,
-        message: `Failed to reach agent service: ${err instanceof Error ? err.message : String(err)}`,
+        message: `Failed to reach agent service at ${agentUrl}: ${err instanceof Error ? err.message : String(err)}`,
       };
     }
   }

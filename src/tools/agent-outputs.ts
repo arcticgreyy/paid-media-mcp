@@ -96,11 +96,11 @@ export const agentOutputTools = (adapter: PaidMediaAdapter) => [
       "unreliable and attribution results should be treated with caution.",
     inputSchema: z.object({
       status: z
-        .enum(["open", "acknowledged", "resolved"])
+        .enum(["open", "acknowledged", "resolved", "suppressed"])
         .optional()
         .describe("Filter by alert status. Defaults to open + acknowledged."),
     }),
-    handler: async (args: { status?: "open" | "acknowledged" | "resolved" }) => {
+    handler: async (args: { status?: "open" | "acknowledged" | "resolved" | "suppressed" }) => {
       const alerts = await adapter.getWatchdogAlerts(args.status);
 
       if (alerts.length === 0) {

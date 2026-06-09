@@ -133,7 +133,7 @@ Tools are actions Claude takes to retrieve your data. They are called automatica
 
 ### Analytics & live data tools
 
-These tools query the live BigQuery data layer on-demand — the same data the autonomous agents monitor on a schedule. Require BigQuery mode (`BIGQUERY_PROJECT_ID` env var set).
+These tools query the live BigQuery data layer on-demand — the same data the autonomous agents monitor on a schedule. Require BigQuery mode (`PAID_MEDIA_GCP_PROJECT` env var set; legacy `BIGQUERY_PROJECT_ID` also accepted).
 
 | Tool | What it does |
 |---|---|

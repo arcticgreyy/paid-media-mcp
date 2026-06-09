@@ -11,13 +11,17 @@
  * Deployed at: https://<your-domain>/api/mcp
  *
  * Required env vars (set in Vercel dashboard):
- *   BIGQUERY_PROJECT_ID                  — GCP project ID
- *   BIGQUERY_DATASET_ID                  — dataset name (default: "paid_media")
+ *   PAID_MEDIA_GCP_PROJECT               — GCP project ID
+ *   PAID_MEDIA_BQ_DATASET                — dataset name (default: "paid_media")
  *   GOOGLE_APPLICATION_CREDENTIALS_JSON  — service account JSON, raw or base64
  *   PAID_MEDIA_AGENT_URL                 — Cloud Run agent base URL
  *
  * Optional:
  *   PAID_MEDIA_DATA_DIR  — override data directory (default: "./data")
+ *
+ * Legacy names BIGQUERY_PROJECT_ID / BIGQUERY_DATASET_ID still work but log
+ * a deprecation warning (see src/config.ts). Setting old and new names to
+ * conflicting values fails at startup.
  *
  * Claude Code settings.json entry:
  *   {

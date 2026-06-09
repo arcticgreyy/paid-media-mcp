@@ -19,6 +19,9 @@
  * Required environment variables (read at call time, not module load time):
  *   PAID_MEDIA_GCP_PROJECT  — GCP project ID   (e.g. "acme-analytics-prod")
  *   PAID_MEDIA_BQ_DATASET   — BigQuery dataset  (e.g. "paid_media")
+ * Resolved through src/config.ts, so the legacy BIGQUERY_PROJECT_ID /
+ * BIGQUERY_DATASET_ID names also work — these tools and the adapter layer
+ * can no longer end up pointed at different projects.
  *
  * BigQuery authentication follows Application Default Credentials (ADC):
  *   - Local dev:  gcloud auth application-default login
@@ -30,6 +33,7 @@
  */
 
 import { z } from "zod";
+import { resolveBqEnv } from "../config.js";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -39,10 +43,8 @@ const MAX_ROWS = 150;
 // ── BQ config (resolved at call time) ────────────────────────────────────────
 
 function bqConfig(): { projectId: string; dataset: string } {
-  return {
-    projectId: process.env.PAID_MEDIA_GCP_PROJECT ?? "",
-    dataset:   process.env.PAID_MEDIA_BQ_DATASET  ?? "",
-  };
+  const { projectId, dataset } = resolveBqEnv();
+  return { projectId: projectId ?? "", dataset };
 }
 
 // ── Lazy BigQuery client ──────────────────────────────────────────────────────

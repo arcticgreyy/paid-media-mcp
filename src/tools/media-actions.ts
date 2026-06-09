@@ -15,6 +15,11 @@
  * Tools:
  *   push_audience_suppression — add domains to platform exclusion list
  *   reallocate_media_budget   — shift budget between campaigns/line items
+ *
+ * TODO(task27): the Operator also writes task27.v1 MMM budget packages
+ * (multi-channel, pre-flight-swept reallocations). This surface only handles
+ * single source→target moves; wire a package-aware tool once the agent
+ * exposes an endpoint for executing a stored task27.v1 package.
  */
 
 import { z } from "zod";
@@ -26,14 +31,16 @@ export const mediaActionTools = (adapter: PaidMediaAdapter) => [
     name: "push_audience_suppression",
     description:
       "Add a list of company domains to an audience exclusion list on a supported ad platform " +
-      "(DV360, Meta, LinkedIn) to stop showing top-of-funnel ads to accounts already in open pipeline. " +
+      "(DV360, Meta, LinkedIn, Google Ads, TikTok, Reddit Ads) to stop showing top-of-funnel ads " +
+      "to accounts already in open pipeline. " +
       "This is the 'closed-loop' action that connects CRM pipeline data to media buying. " +
       "The action is logged to operator_action_log. If PAID_MEDIA_AGENT_URL is configured, " +
-      "the request is forwarded to the autonomous Operator agent for execution with guardrails. " +
+      "the request is forwarded to the agent's /action/audience-suppression route, which runs the " +
+      "Operator's guardrail path (approval gating via OPERATOR_REQUIRE_APPROVAL, audit logging). " +
       "Otherwise, it is queued as a pending approval with full context for manual execution.",
     inputSchema: z.object({
       platform: z
-        .enum(["dv360", "meta", "linkedin"])
+        .enum(["dv360", "meta", "linkedin", "google_ads", "tiktok", "reddit_ads"])
         .describe("Which platform to push the exclusion to"),
       advertiser_id: z
         .string()
@@ -78,15 +85,18 @@ export const mediaActionTools = (adapter: PaidMediaAdapter) => [
     name: "reallocate_media_budget",
     description:
       "Shift budget from an underperforming campaign or line item to one with higher " +
-      "attributed pipeline contribution. Supports DV360, SA360, and Google Ads. " +
-      "The reallocation is capped at the configured max_budget_shift_pct guardrail. " +
+      "attributed pipeline contribution. Supports DV360, SA360, Meta, LinkedIn, Google Ads, " +
+      "TikTok, and Reddit Ads. " +
+      "When PAID_MEDIA_AGENT_URL is configured, the request is forwarded to the agent's " +
+      "/action/reallocate-budget route, where the Operator's guardrails apply: the platform " +
+      "clients enforce the MAX_BUDGET_SHIFT_PCT cap and OPERATOR_REQUIRE_APPROVAL queues the " +
+      "action for human approval instead of executing immediately. " +
       "The action is logged to operator_action_log with full attribution rationale. " +
-      "If PAID_MEDIA_AGENT_URL is configured, forwarded to the Operator agent. " +
-      "Otherwise queued for manual execution with a pending approval record. " +
+      "Without an agent URL it is queued for manual execution with a pending approval record. " +
       "Always provide the attribution insight that drives the recommendation.",
     inputSchema: z.object({
       platform: z
-        .enum(["dv360", "sa360", "google_ads"])
+        .enum(["dv360", "sa360", "meta", "linkedin", "google_ads", "tiktok", "reddit_ads"])
         .describe("Which platform the campaigns are on"),
       advertiser_id: z
         .string()

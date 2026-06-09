@@ -943,7 +943,8 @@ The server exposes **68 tools** across 16 categories, **17 MCP resources**, and 
 | Agent integration _(BQ)_ | `get_analyst_insights`, `get_attribution_results`, `get_attribution_run_history`, `get_pending_approvals`, `trigger_agent_run` |
 | Media actions _(BQ)_ | `push_audience_suppression`, `reallocate_media_budget` |
 
-Tools marked _(BQ)_ require BigQuery mode (`BIGQUERY_PROJECT_ID` env var set).
+Tools marked _(BQ)_ require BigQuery mode (`PAID_MEDIA_GCP_PROJECT` env var set;
+the legacy name `BIGQUERY_PROJECT_ID` still works but logs a deprecation warning).
 
 **→ [Full tool, resource, prompt reference, and example conversations: TOOLS.md](./TOOLS.md)**
 
@@ -1013,6 +1014,36 @@ export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account-key.json"
 ```
 
 Or on GCP infrastructure, attach a service account with BigQuery Data Viewer access.
+
+**Environment variables (canonical names, shared with paid-media-agent):**
+
+```bash
+export PAID_MEDIA_GCP_PROJECT="your-gcp-project"   # enables BigQuery mode
+export PAID_MEDIA_BQ_DATASET="paid_media"          # default: paid_media
+export PAID_MEDIA_AGENT_URL="https://your-cloud-run-url"  # optional — agent integration
+```
+
+The legacy names `BIGQUERY_PROJECT_ID` / `BIGQUERY_DATASET_ID` still work as
+fallbacks (with a deprecation warning); setting old and new names to
+conflicting values fails at startup. All env resolution lives in
+`src/config.ts`.
+
+**External staging tables (prerequisites for some tools):**
+
+`detect_crm_null_fields`, `query_account_journey`'s revenue layer, and the
+reporting-view tools (`get_campaign_downstream_roi`) read three tables the
+agents do not create or populate:
+
+| Table | Populated by | Used for |
+|---|---|---|
+| `sessions` | Your GA4 BigQuery export ETL | Traffic-layer joins (`ga4_client_id`, `utm_campaign`, click IDs) |
+| `crm_leads_staging` | Your CRM (Salesforce/HubSpot) export | Lead → web linkage, null-field audits |
+| `crm_opportunities_staging` | Your CRM export | Pipeline stage, deal `amount`, open-pipeline suppression |
+
+The `paid-media-agent` schema ships stub DDL for all three
+(`schema/bigquery/02_touchpoints.sql` and `18_external_staging.sql`, which
+documents the full column contract). Until they're loaded, these tools return
+empty results.
 
 **Expected table schemas:**
 
