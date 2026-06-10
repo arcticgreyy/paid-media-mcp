@@ -49,7 +49,7 @@ function bqConfig(): { projectId: string; dataset: string } {
 
 // ── Lazy BigQuery client ──────────────────────────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 type BqClient = {
   query: (
     request: string | {

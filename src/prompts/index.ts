@@ -135,7 +135,7 @@ Steps:
 2. Call \`get_test_learnings\` to retrieve all completed tests with their outcomes.
 3. Call \`list_tests\` with status "active" to see what's currently running.
 4. Call \`list_tests\` with status "planned" to see what's queued.
-${args.team_id ? `5. Call \`get_team\` to understand the team's objectives and primary KPIs.` : "5. Call \`list_teams\` for context on team objectives."}
+${args.team_id ? `5. Call \`get_team\` to understand the team's objectives and primary KPIs.` : "5. Call `list_teams` for context on team objectives."}
 
 Produce:
 - **Key Learnings Summary**: Top 5 actionable learnings from completed tests, with the metric impact
@@ -434,8 +434,8 @@ Rules:
 You are a senior paid media analyst. Produce a comprehensive performance analysis for ${scope} from ${args.date_from} to ${args.date_to}.
 
 Research steps:
-1. ${args.team_id ? `Call \`get_team\` for team_id "${args.team_id}" to understand objectives, KPIs, and targets.` : "Call \`list_teams\` to understand all teams and their objectives."}
-2. ${args.team_id ? `Call \`get_team_performance\` for team_id "${args.team_id}"` : "Call \`get_team_performance\` for each team"} with date range ${args.date_from} to ${args.date_to}.
+1. ${args.team_id ? `Call \`get_team\` for team_id "${args.team_id}" to understand objectives, KPIs, and targets.` : "Call `list_teams` to understand all teams and their objectives."}
+2. ${args.team_id ? `Call \`get_team_performance\` for team_id "${args.team_id}"` : "Call `get_team_performance` for each team"} with date range ${args.date_from} to ${args.date_to}.
 3. Call \`list_campaigns\` filtered by ${args.team_id ? `team_id "${args.team_id}"` : "all active campaigns"} to understand the campaign mix.
 ${comparePrior ? `4. Call \`get_team_performance\` for the prior period ${priorFromStr} to ${priorToStr} for period-over-period comparison.` : ""}
 ${comparePrior ? "5." : "4."} Call \`get_benchmarks\` for each relevant platform/objective combination to compare against industry norms.
@@ -486,7 +486,7 @@ You are a paid media analyst generating a ${args.audience} report for ${args.sco
 
 Research steps:
 1. Call \`list_reporting_templates\` filtered by audience "${args.audience}" to find the right template${args.template_id ? ` (or use template "${args.template_id}" directly via \`get_reporting_template\`)` : ""}.
-2. ${args.scope === "all" ? "Call \`list_teams\` and for each team call \`get_team_performance\`" : args.scope.startsWith("team_") ? `Call \`get_team\` for "${args.scope}" and \`get_team_performance\`` : `Call \`get_campaign\` and \`get_campaign_performance\` for "${args.scope}"`} with date range ${args.date_from} to ${args.date_to}.
+2. ${args.scope === "all" ? "Call `list_teams` and for each team call `get_team_performance`" : args.scope.startsWith("team_") ? `Call \`get_team\` for "${args.scope}" and \`get_team_performance\`` : `Call \`get_campaign\` and \`get_campaign_performance\` for "${args.scope}"`} with date range ${args.date_from} to ${args.date_to}.
 3. Call \`get_benchmarks\` for each relevant platform/objective.
 4. If the template includes budget/pacing sections: call \`list_campaigns\` with status "active" to check pacing.
 5. For executive reports: check if there are any active tests via \`list_tests\` with status "active" to flag.
@@ -532,7 +532,7 @@ You are a paid media measurement specialist. Generate a cross-channel attributio
 
 Research steps:
 1. Call \`list_attribution_models\` to get all configured attribution setups.
-2. ${args.team_id ? `Call \`get_team\` for "${args.team_id}" and \`list_campaigns\` filtered by team_id` : "Call \`list_campaigns\` with status active"} to understand the campaign mix.
+2. ${args.team_id ? `Call \`get_team\` for "${args.team_id}" and \`list_campaigns\` filtered by team_id` : "Call `list_campaigns` with status active"} to understand the campaign mix.
 3. Call \`get_team_performance\` (or \`get_campaign_performance\` per campaign) for the date range.
 4. Call \`get_measurement_overview\` and \`list_conversion_apis\` to understand signal quality and deduplication setup.
 5. Call \`list_measurement_partners\` to check if incrementality or MMM data is available.
@@ -587,7 +587,7 @@ Research steps:
 1. Call \`get_bulk_upload_instructions\` for platform "${args.platform}" to confirm the upload format and process.
 2. Determine which entity types are needed for this action and call \`get_bulk_upload_schema\` for each.
 3. Call \`get_platform_org_defaults\` for platform "${args.platform}" to apply standard naming and default field values.
-${args.campaign_id ? `4. Call \`get_campaign\` for "${args.campaign_id}" to get existing campaign details as the basis for edits.` : "4. Call \`list_campaigns\` to understand existing campaign structure if relevant."}
+${args.campaign_id ? `4. Call \`get_campaign\` for "${args.campaign_id}" to get existing campaign details as the basis for edits.` : "4. Call `list_campaigns` to understand existing campaign structure if relevant."}
 5. Call \`list_first_party_audiences\` and \`list_third_party_audience_layers\` for platform "${args.platform}" if the file involves audience targeting.
 
 Output rules:

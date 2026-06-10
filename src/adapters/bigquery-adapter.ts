@@ -119,12 +119,14 @@ async function getBigQuery(projectId: string): Promise<BigQueryClient> {
     if (err instanceof SyntaxError) {
       throw new Error(
         "GOOGLE_APPLICATION_CREDENTIALS_JSON is set but is not valid JSON. " +
-        "Provide the raw service account JSON or its base64 encoding."
+        "Provide the raw service account JSON or its base64 encoding.",
+        { cause: err }
       );
     }
     throw new Error(
       "BigQueryAdapter requires @google-cloud/bigquery. " +
-      "Run: npm install @google-cloud/bigquery"
+      "Run: npm install @google-cloud/bigquery",
+      { cause: err }
     );
   }
 }
@@ -318,7 +320,6 @@ export class BigQueryAdapter extends FileAdapter {
     objective?: CampaignObjective
   ) {
     try {
-      const bq = await this.client();
       const conditions: string[] = [];
       const params: Record<string, unknown> = {};
       if (platform)  { conditions.push("platform = @platform");   params.platform = platform; }
@@ -909,7 +910,6 @@ export class BigQueryAdapter extends FileAdapter {
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
     const groupBy = filters.group_by ?? "day";
-    const isAggregated = groupBy === "week" || groupBy === "month";
 
     const periodExpr = groupBy === "week"
       ? "DATE_TRUNC(s.date, WEEK(MONDAY))"

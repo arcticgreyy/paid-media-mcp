@@ -117,6 +117,9 @@ These answers are only possible when campaign data, institutional knowledge, and
 
 ### Step 1 — Clone and install
 
+> After cloning, run `bash scripts/install-hooks.sh` once to install the
+> pre-commit guard against committing private assets.
+
 ```bash
 git clone https://github.com/arcticgreyy/paid-media-mcp.git
 cd paid-media-mcp
@@ -1076,6 +1079,11 @@ empty results.
 **Expected table schemas:**
 
 The BigQueryAdapter targets the `paid-media-agent` canonical schema. If using that deployment, the tables already exist. If connecting your own warehouse, match this structure or edit the queries in `bigquery-adapter.ts`.
+
+> The full cross-repo column contract (every agent-output table this server
+> reads, the HTTP routes it calls, and the `task27.v1` package format) lives
+> in [`CONTRACT.md` in paid-media-agent](https://github.com/arcticgreyy/paid-media-agent/blob/main/CONTRACT.md).
+> Changes to those interfaces must update that file in the same PR.
 
 ```sql
 -- platform_campaigns

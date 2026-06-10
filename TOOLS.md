@@ -1,6 +1,10 @@
 # paid-media-mcp — Tools, Resources & Prompts Reference
 
-Complete reference for the 68 tools, 17 resources, and 15 prompt templates exposed by the paid-media-mcp server. For setup and data configuration, see [README.md](./README.md).
+> **Generated file — do not edit the tool/resource/prompt tables by hand.**
+> Regenerate with `npm run tools:md`. Edit example conversations in
+> `docs/tools-examples.md`.
+
+Complete reference for the 73 tools, 17 resources, and 17 prompt templates exposed by the paid-media-mcp server. For setup and data configuration, see [README.md](./README.md).
 
 ---
 
@@ -17,262 +21,226 @@ Complete reference for the 68 tools, 17 resources, and 15 prompt templates expos
    - [Audience tools](#audience-tools)
    - [Measurement tools](#measurement-tools)
    - [GMP platform tools](#gmp-platform-tools)
-   - [Analytics & live data tools](#analytics--live-data-tools)
-   - [Account-based analytics tools](#account-based-analytics-tools)
-   - [Identity & signal tools](#identity--signal-tools)
-   - [Data governance tools](#data-governance-tools)
+   - [Identity & signal tools](#identity-signal-tools)
    - [Agent integration tools](#agent-integration-tools)
+   - [Analytics & live data tools](#analytics-live-data-tools)
    - [Media action tools](#media-action-tools)
+   - [Account-based analytics tools](#account-based-analytics-tools)
+   - [Reporting view tools](#reporting-view-tools)
 2. [Resources](#resources)
-   - [Org knowledge resources](#org-knowledge-resources)
-   - [Schema & data contract resources](#schema--data-contract-resources)
-   - [Live data resources](#live-data-resources)
 3. [Prompts](#prompts)
-   - [Analysis prompts](#analysis-prompts)
-   - [Action prompts](#action-prompts)
 4. [Example conversations](#example-conversations)
 
 ---
 
 ## Tools
 
-Tools are actions Claude takes to retrieve your data. They are called automatically when relevant, or can be requested explicitly.
+Tools are actions Claude takes to retrieve your data. They are called automatically when relevant, or can be requested explicitly. Tools that query live BigQuery data require BigQuery mode (`PAID_MEDIA_GCP_PROJECT` env var set).
 
 ### Campaign tools
 
 | Tool | What it does |
 |---|---|
-| `list_campaigns` | Filter campaigns by team, platform, status, objective, funnel stage, or tag |
-| `get_campaign` | Full details for one campaign by ID |
-| `list_accounts` | All accounts, optionally filtered by team |
-| `get_account` | Full account details by ID |
+| `list_campaigns` | List and filter paid media campaigns. |
+| `get_campaign` | Get full details for a single campaign by its ID. |
+| `get_account` | Get details for an ad account, including which team manages it and its budget. |
+| `list_accounts` | List all ad accounts, optionally filtered by team. |
 
 ### Team tools
 
 | Tool | What it does |
 |---|---|
-| `list_teams` | All teams with objectives, KPIs, platforms |
-| `get_team` | Team details + its members + its accounts |
-| `get_team_for_account` | Which team owns a given account |
-| `list_team_members` | Members, optionally filtered by team |
-| `get_team_member` | Full member details |
+| `list_teams` | List all media teams, their objectives, KPIs, managed platforms, and account assignments. |
+| `get_team` | Get full details for a single media team: objectives, KPIs, platforms, members, and managed accounts. |
+| `get_team_for_account` | Look up which team owns a given ad account. |
+| `list_team_members` | List team members, their roles, platform specialties, and responsibilities. |
+| `get_team_member` | Get full details for a single team member by ID. |
 
 ### Performance tools
 
 | Tool | What it does |
 |---|---|
-| `get_campaign_performance` | Per-day records + aggregated totals for a campaign |
-| `get_team_performance` | Aggregated totals by team, broken down per campaign |
-| `get_benchmarks` | Industry benchmarks by platform and objective |
+| `get_campaign_performance` | Get historical performance data for a campaign. |
+| `get_team_performance` | Get aggregated performance data across all campaigns for a team, within an optional date range. |
+| `get_benchmarks` | Get industry/platform benchmarks for key metrics (CTR, CPC, CPM, CPA, ROAS) to compare against actual performance. |
 
 ### Attribution tools
 
 | Tool | What it does |
 |---|---|
-| `list_attribution_models` | All configured attribution setups |
-| `get_attribution_model` | Full details for one model |
-| `compare_attribution_models` | Side-by-side diff of two models |
+| `list_attribution_models` | List all attribution configurations used by the team: model type (last-click, data-driven, etc.), windows, conversion events, and which platforms each applies to. |
+| `get_attribution_model` | Get full details for a specific attribution configuration: model, window, conversion events, cross-device settings, and intended use cases. |
+| `compare_attribution_models` | Compare two attribution configurations side-by-side to understand how they differ in model type, windows, conversion events, and use cases. |
 
 ### Reporting tools
 
 | Tool | What it does |
 |---|---|
-| `list_reporting_templates` | Templates filtered by audience |
-| `get_reporting_template` | Full template with all sections |
-| `build_performance_report` | Assembles raw data + template for Claude to narrate |
+| `list_reporting_templates` | List available reporting and dashboard templates. |
+| `get_reporting_template` | Get the full structure of a reporting template including all sections, metrics, dimensions, and visualizations. |
+| `build_performance_report` | Generate a narrative performance report for a campaign or team, combining live performance data with the appropriate reporting template. |
+| `get_campaign_performance_report` | Query live campaign performance from BigQuery. |
+| `get_pacing_report` | Return budget pacing status for all campaigns that have started flying. |
+| `get_roas_comparison` | Compare platform-reported ROAS vs MTA attributed ROAS vs margin ROI for each channel. |
+| `get_channel_efficiency` | Cross-channel efficiency report showing attributed CPA, attributed ROAS, pipeline share, and spend share per channel. |
+| `get_ad_performance` | Ad/creative level performance with multi-touch attribution credit. |
+| `get_keyword_performance` | Keyword performance with spend, quality scores, and Google impression share metrics. |
+| `get_daily_performance` | Daily performance time series across all campaigns. |
 
 ### Asset tools
 
 | Tool | What it does |
 |---|---|
-| `get_asset_library` | DAM system info, access instructions, guidelines links, category summary |
-| `list_asset_categories` | All asset categories, optionally filtered by type (image, video, copy, etc.) |
-| `get_asset_category` | Full details for one category: location, naming convention, specs |
-| `get_asset_specs` | Platform-specific specs (dimensions, file size, format) for a given asset type and platform |
+| `get_asset_library` | Get the asset library overview: DAM system name and URL, access instructions, brand and copy guidelines links, and a summary of asset categories available. |
+| `list_asset_categories` | List asset categories (image, video, copy, etc.) with their storage locations, naming conventions, and platform specs. |
+| `get_asset_category` | Get full details for an asset category: location URL, naming convention, and per-platform specs (dimensions, file size limits, formats, aspect ratios). |
+| `get_asset_specs` | Get platform-specific asset specs (dimensions, file size, aspect ratio, duration limits) for a given asset type and platform combination. |
 
 ### Testing tools
 
 | Tool | What it does |
 |---|---|
-| `get_testing_methodology` | Confidence threshold, stat sig rules, winner criteria, and testing tools in use |
-| `list_tests` | All tests filtered by status, type, team, or platform — covers both A/B tests and vendor/partner evaluations |
-| `get_test` | Full details for one test: hypothesis, all variants, results, and vendor context (for DSP/agency/tool evaluations) |
-| `get_test_learnings` | Summarized learnings from completed tests — includes recommendation field for vendor evaluations |
+| `get_testing_methodology` | Get the team's testing methodology: confidence threshold (e.g. |
+| `list_tests` | List tests — active, planned, completed, or all. |
+| `get_test` | Get full details for a single test: hypothesis, all variants, results, confidence level, primary metric lift, conclusion, and action taken. |
+| `get_test_learnings` | Summarize completed test results: what was tested, which variant won, lift achieved, whether stat sig was reached, and action taken. |
 
 ### Audience tools
 
 | Tool | What it does |
 |---|---|
-| `get_audience_library_overview` | High-level summary: 1P count, data providers, onboarding platforms, LAL strategy |
-| `list_first_party_audiences` | All 1P segments filtered by business unit or platform |
-| `list_data_providers` | Contracted data providers filtered by contract status |
-| `get_lookalike_strategy` | Full LAL strategy: seed audiences, expansion sizes, best performers |
-| `list_third_party_audience_layers` | Overlay segments filtered by platform, default use, or best-performer flag |
-| `get_onboarding_platforms` | Data onboarding and clean room platforms in use |
+| `get_audience_library_overview` | Get a high-level overview of the full audience library: count of first-party audiences, contracted data providers, onboarding platforms, lookalike strategy summary, and third-party layer count. |
+| `list_first_party_audiences` | List first-party audiences (CRM lists, pixel-based, customer match, suppression lists, lookalike seeds, etc.). |
+| `list_data_providers` | List contracted third-party data providers (e.g. |
+| `get_lookalike_strategy` | Get the full lookalike audience strategy: seed audiences used per platform, expansion percentages tested, best-performing expansion sizes, and strategic notes. |
+| `list_third_party_audience_layers` | List third-party audience segments and layers used as targeting overlays. |
+| `get_onboarding_platforms` | Get details on first-party data onboarding platforms and clean rooms in use (e.g. |
 
 ### Measurement tools
 
 | Tool | What it does |
 |---|---|
-| `get_measurement_overview` | High-level tracking stack: TMS, pixel count, CAPI count, measurement partners |
-| `get_tag_management` | TMS details: platform, container ID, implementation type, server-side endpoint |
-| `list_pixels_and_tags` | All platform pixels filtered by platform: events tracked, implementation |
-| `list_conversion_apis` | All Conversion API implementations: events, match rate, deduplication method |
-| `get_cm360_setup` | CM360 account, Floodlight config ID, and all u-variables with descriptions |
-| `get_website_data_capture` | Data layer status/variables, analytics platform, first-party cookie setup |
-| `list_measurement_partners` | MMM, incrementality, brand lift, attribution partners filtered by type |
+| `get_measurement_overview` | Get a high-level overview of the full measurement and tracking setup: tag management system, implementation type (client-side/server-side/hybrid), pixel count, conversion API count, and measurement partners. |
+| `get_tag_management` | Get full tag management system details: platform (GTM, Tealium, etc.), container ID, implementation type, server-side endpoint, and configuration notes. |
+| `list_pixels_and_tags` | List all platform pixels and tracking tags: implementation type (client/server-side), events tracked, custom parameters. |
+| `list_conversion_apis` | List all Conversion API implementations (Meta CAPI, Google Enhanced Conversions, TikTok Events API, etc.): events sent, match rate, deduplication method. |
+| `get_cm360_setup` | Get Campaign Manager 360 configuration: account ID, Floodlight configuration ID, and all u-variables (custom dimensions) with their names, types, descriptions, and example values. |
+| `get_website_data_capture` | Get the website data capture setup: data layer implementation status and variables, analytics platform and property ID, first-party cookie config (domain, duration, captured data). |
+| `list_measurement_partners` | List measurement and analytics partners (MMM, incrementality testing, brand lift, attribution providers). |
 
 ### GMP platform tools
 
 | Tool | What it does |
 |---|---|
-| `list_bulk_upload_platforms` | Lists configured GMP platforms (DV360, SA360, CM360) with a summary of supported entity types |
-| `get_bulk_upload_schema` | Full field schema for a platform + entity type combo (e.g. DV360 line_item), including required fields, valid values, and org defaults |
-| `get_platform_org_defaults` | All org-level defaults for a platform: naming conventions, standard field values, notes |
-| `get_bulk_upload_instructions` | Step-by-step instructions for generating and uploading a bulk file for DV360 SDF, SA360 Bulksheet, or CM360 Trafficking Sheet |
-
-### Analytics & live data tools
-
-These tools query the live BigQuery data layer on-demand — the same data the autonomous agents monitor on a schedule. Require BigQuery mode (`PAID_MEDIA_GCP_PROJECT` env var set; legacy `BIGQUERY_PROJECT_ID` also accepted).
-
-| Tool | What it does |
-|---|---|
-| `get_daily_performance` | Daily spend + impressions + clicks + conversions by platform and campaign for a date range |
-| `get_ad_performance` | Ad-level (creative-level) performance metrics — identify top and bottom performers within a campaign |
-| `get_keyword_performance` | Keyword-level performance for search campaigns — spend, clicks, conversions, CPC, Quality Score |
-| `get_pacing_report` | Budget pacing status across active campaigns — expected vs. actual spend, over/under-pacing flags |
-| `get_channel_efficiency` | Cross-channel efficiency ranking — ROAS, CPA, and marginal ROI comparison by platform |
-| `get_roas_comparison` | ROAS by campaign and channel side-by-side, with trend indicators vs. the prior period |
-| `get_campaign_performance_report` | Full campaign performance report assembled for a specified date range and campaign set |
-
-### Account-based analytics tools
-
-Account-level B2B attribution — IP-resolved company profiles, session journeys, and pipeline funnel tracking. Require BigQuery mode.
-
-| Tool | What it does |
-|---|---|
-| `get_company_profile` | IP-resolved firmographic profile for a target account: company name, domain, industry, employee count, intent score |
-| `get_company_sessions` | All website sessions attributed to a specific company domain, with session depth and UTM attribution |
-| `get_company_engagement` | Engagement summary for a company across all paid channels — touches, sessions, funnel stage |
-| `get_target_account_activity` | Recent activity for a target account list — signals pipeline accounts are engaging with paid media |
-| `get_target_account_funnel` | Funnel stage distribution for a target account list: awareness → engaged → MQL → opportunity |
-| `get_dark_funnel_coverage` | Coverage of target accounts in identity graph — which accounts are visible vs. dark (no match) |
+| `list_bulk_upload_platforms` | List the GMP platforms that support bulk upload (DV360 SDF, SA360 Bulksheet, CM360 Trafficking Sheet) with a summary of their format, entity types, and upload process. |
+| `get_bulk_upload_schema` | Get the full field schema for a platform bulk upload entity type (e.g. |
+| `get_platform_org_defaults` | Get the org-configured default field values and naming conventions for a platform's entity types. |
+| `get_bulk_upload_instructions` | Get step-by-step upload instructions and file naming requirements for a GMP platform's bulk upload format. |
 
 ### Identity & signal tools
 
 | Tool | What it does |
 |---|---|
-| `list_identity_namespaces` | All registered signal types (gclid, fbclid, li_fat_id, ttclid, GA4 client_id, etc.) with capture quality and coverage |
-| `get_identity_namespace` | Full details for one namespace: signal type, platform, match confidence, and schema |
-| `get_identity_signal_coverage` | Which signals are being captured for a given platform set — identifies gaps |
-| `query_account_journey` | Full multi-touch attribution path for a specific company domain across all channels |
-
-### Data governance tools
-
-| Tool | What it does |
-|---|---|
-| `get_watchdog_alerts` | Active data quality alerts from the Watchdog agent — signal failures, CRM anomalies, forensic trap triggers |
-| `check_signal_capture_health` | Live capture rates for all monitored identity namespaces with trend indicators |
-| `detect_crm_null_fields` | CRM records missing paid media identifiers — surfaces attribution gaps at the lead level |
+| `list_identity_namespaces` | List all registered identity signal types from the shared schema namespace registry. |
+| `get_identity_namespace` | Get full details for a specific identity signal namespace, including capture method, lifetime, PII status, which platforms use it, and implementation notes. |
+| `get_identity_signal_coverage` | Review which identity signal namespaces are active for a given set of platforms and identify gaps in coverage. |
 
 ### Agent integration tools
 
 | Tool | What it does |
 |---|---|
-| `get_analyst_insights` | Findings and recommendations from the most recent Analyst agent run |
-| `get_attribution_results` | Multi-touch attribution credit output by channel from the latest model run |
-| `get_attribution_run_history` | History of all attribution model runs with model type, date, and status |
-| `get_pending_approvals` | Operator agent actions awaiting human approval before execution |
-| `trigger_agent_run` | Trigger an on-demand run of Watchdog, Analyst, or Operator |
+| `get_attribution_results` | Get the latest multi-touch attribution results from the most recent Analyst agent run. |
+| `get_attribution_run_history` | List recent attribution model runs: model used, date range, number of paths modeled, identity match rate, and run status. |
+| `get_watchdog_alerts` | Get data quality alerts from the Watchdog agent. |
+| `get_analyst_insights` | Get insights and recommendations produced by the Analyst agent: channel anomalies, attribution model readiness assessments, stitching quality findings, budget efficiency observations, and incrementality signals. |
+| `get_pending_approvals` | Get media actions proposed by the Operator agent that are awaiting human approval. |
+| `trigger_agent_run` | Trigger an on-demand run of one of the autonomous agents: 'watchdog' (data quality audit), 'analyst' (attribution model run), or 'operator' (media optimization pass). |
+
+### Analytics & live data tools
+
+| Tool | What it does |
+|---|---|
+| `query_account_journey` | Query the BigQuery data warehouse to return the full multi-touch attribution path for all users mapped to a specific company account domain. |
+| `check_signal_capture_health` | Check the current capture rates for all monitored identity signal namespaces (platform click IDs and analytics cookies) against their thresholds. |
+| `detect_crm_null_fields` | Scan recent CRM lead records for missing media identifier fields — a key signal that the tracking pipeline has broken. |
 
 ### Media action tools
 
 | Tool | What it does |
 |---|---|
-| `push_audience_suppression` | Add company domains to platform exclusion lists (DV360, Meta, LinkedIn) — suppress pipeline accounts from top-of-funnel acquisition |
-| `reallocate_media_budget` | Shift budget between campaigns across platforms (DV360, SA360, Meta, LinkedIn) with guardrail enforcement |
+| `push_audience_suppression` | Add a list of company domains to an audience exclusion list on a supported ad platform (DV360, Meta, LinkedIn, Google Ads, TikTok, Reddit Ads) to stop showing top-of-funnel ads to accounts already in open pipeline. |
+| `reallocate_media_budget` | Shift budget from an underperforming campaign or line item to one with higher attributed pipeline contribution. |
+
+### Account-based analytics tools
+
+| Tool | What it does |
+|---|---|
+| `get_company_profile` | Look up the enriched firmographic profile for a company domain. |
+| `get_target_account_funnel` | Return ranked target accounts from the dark funnel, sorted by composite priority score. |
+| `get_company_sessions` | Return de-anonymized web sessions for a specific company over a lookback window. |
+| `get_company_engagement` | Return the rolling engagement summary for a company, including composite intent score. |
+| `get_dark_funnel_coverage` | Classify target accounts by web presence: 'dark' (never seen on website), 'lapsed' (last seen >90 days ago), or 'visible' (recent web activity detected). |
+| `get_target_account_activity` | Return the daily activity history for a specific target account: web sessions (today/7d/30d/90d), pricing and demo visits, paid touchpoints, intent spikes, and coverage completeness score. |
+
+### Reporting view tools
+
+| Tool | What it does |
+|---|---|
+| `get_campaign_performance_metrics` | Query daily campaign spend, impressions, clicks, and platform-reported conversions across all active channels (Meta, Google Ads, TikTok, Reddit) from the unified `v_unified_daily_spend` BigQuery view. |
+| `get_campaign_downstream_roi` | Compare campaign performance across three measurement layers using the `v_reporting_campaign_roi` BigQuery view: • **Platform layer** — ad-network pixel conversions and platform CPA • **Traffic layer** — paid sessions, unique visitors, and web conversion events via GA4 • **Revenue layer** — CRM leads, MQLs, Closed-Won count, pipeline ARR, and revenue ROAS Also includes MTA attribution comparison (attributed ROAS vs. |
+| `get_monthly_budget_pacing` | Retrieve current calendar-month pacing status for all active campaigns from the `v_reporting_monthly_pacing` BigQuery view. |
 
 ---
 
 ## Resources
 
-Resources are documents Claude can read as context (similar to attaching a file). Claude reads `paid-media://system` automatically on startup to understand the deployment mode.
+Resources are reference documents Claude can read for context (schemas, conventions, contracts).
 
-### Org knowledge resources
-
-| Resource URI | What it contains |
-|---|---|
-| `paid-media://system` | Server mode (BigQuery vs. JSON), connected data sources, and tool routing guide — Claude reads this first to understand the deployment context |
-| `paid-media://overview` | Company metadata + all teams + all accounts |
-| `paid-media://campaigns` | All campaigns |
-| `paid-media://team-structure` | Teams enriched with their members |
-| `paid-media://attribution-models` | All attribution configurations |
-| `paid-media://reporting-templates` | All reporting templates |
-| `paid-media://asset-library` | Full asset library: DAM info, categories, and specs |
-| `paid-media://testing-program` | Full testing program: methodology, tools, and all tests |
-| `paid-media://audience-library` | Full audience library: 1P, providers, LAL strategy, 3P layers |
-| `paid-media://measurement-setup` | Full tracking stack: TMS, pixels, APIs, CM360, data capture |
-| `paid-media://gmp-platforms` | DV360 SDF v7, SA360 Bulksheet, and CM360 Trafficking Sheet schemas with org defaults |
-
-### Schema & data contract resources
-
-| Resource URI | What it contains |
-|---|---|
-| `paid-media://schema/identity` | Identity graph table schemas — entity, signal, and namespace definitions for text-to-SQL |
-| `paid-media://schema/attribution` | Attribution table schemas, credit formula weights, and model run structure |
-| `paid-media://schema/reporting` | Reporting view schemas — pre-built cross-channel metrics structure |
-| `paid-media://config/attribution-milestones` | B2B pipeline stage definitions, conversion type values, and model credit weights |
-
-### Live data resources
-
-| Resource URI | What it contains |
-|---|---|
-| `paid-media://account-analytics/overview` | Account-based analytics summary — coverage stats, top engaged accounts, dark funnel gap |
-| `paid-media://agent-status` | Current status of all three autonomous agents (Watchdog, Analyst, Operator) with last run timestamps |
+| Resource URI | Name | Description |
+|---|---|---|
+| `paid-media://system` | Paid Media MCP — System Context | Start here. |
+| `paid-media://overview` | Company & Team Overview | Company metadata, all teams, and their account/platform assignments |
+| `paid-media://campaigns` | All Campaigns | Full list of all campaigns across all teams and platforms |
+| `paid-media://team-structure` | Team Structure | All teams, their members, objectives, KPIs, and account assignments |
+| `paid-media://attribution-models` | Attribution Models | All attribution configurations including models, windows, and conversion events |
+| `paid-media://reporting-templates` | Reporting Templates | All reporting and dashboard templates by audience and cadence |
+| `paid-media://asset-library` | Asset Library | DAM system info, asset categories, naming conventions, and per-platform specs |
+| `paid-media://testing-program` | Testing Program | Testing methodology, tools, and full test history (active, planned, completed) |
+| `paid-media://audience-library` | Audience Library | First-party audiences, data providers, onboarding platforms, lookalike strategy, and third-party layers |
+| `paid-media://measurement-setup` | Measurement & Tracking Setup | Tag management, pixels, conversion APIs, CM360 u-variables, website data capture, and measurement partners |
+| `paid-media://gmp-platforms` | GMP Platform Bulk Upload Schemas | DV360 SDF, SA360 Bulksheet, and CM360 Trafficking Sheet schemas with field definitions, valid values, and org defaults |
+| `paid-media://schema/identity` | Identity Schema Reference | The paid-media-schema identity layer table schemas: identity_signals, identity_entities, identity_entity_signals, identity_stitching_log. |
+| `paid-media://schema/attribution` | Attribution Schema Reference | The paid-media-schema attribution layer table schemas: attribution_paths, attribution_runs, attribution_results, attribution_channel_summary. |
+| `paid-media://config/attribution-milestones` | Attribution Milestones & Model Config | B2B pipeline stage definitions and attribution model weight configurations. |
+| `paid-media://schema/reporting` | Reporting Views Schema Reference | The paid-media-schema reporting layer view schemas (06_reporting.sql): v_campaign_performance, v_pacing_status, v_roas_comparison, v_channel_efficiency, v_ad_performance, v_keyword_performance, v_daily_performance. |
+| `paid-media://account-analytics/overview` | Account Analytics Overview | Summary of B2B dark funnel visibility: top target accounts by intent, dark funnel coverage breakdown (dark/lapsed/visible), and recent intent spikes. |
+| `paid-media://agent-status` | Autonomous Agent Status | Current status of all three autonomous agents: latest Watchdog alerts, most recent Analyst attribution run, and any Operator actions pending approval. |
 
 ---
 
 ## Prompts
 
-Pre-built prompt templates that guide Claude through multi-step analysis tasks. Access them from Claude's prompt picker (the `/` command in supported clients).
+Prompt templates for common workflows — invoke from the prompt picker in Claude.
 
-### Analysis prompts
-
-| Prompt | Arguments | What it does |
-|---|---|---|
-| `campaign_performance_review` | `campaign_id`, `date_from`, `date_to` | Full performance review with pacing and benchmark comparison |
-| `team_weekly_report` | `team_id`, `week_start` | Weekly scorecard using your team's reporting template |
-| `attribution_analysis` | `campaign_id` | Explains model options and recommends the right one for the campaign objective |
-| `budget_pacing_check` | `team_id` (optional), `check_date` | Flags over/under-pacing campaigns with specific actions |
-| `channel_mix_analysis` | `team_id`, `date_from`, `date_to` | Channel efficiency ranking and reallocation recommendations |
-| `test_and_learn_review` | `team_id` (optional), `platform` (optional) | Summarizes test history, active tests, gaps, and recommends next experiments |
-| `audience_strategy_review` | `platform` | Full audience strategy audit: 1P usage, LAL quality, 3P layer gaps, recommendations |
-| `measurement_audit` | _(none)_ | End-to-end tracking audit: signal gaps, deduplication risks, attribution reliability |
-| `asset_readiness_check` | `campaign_id` | Checks whether required assets exist for a campaign's platform and generates a trafficking checklist |
-
-### Action prompts
-
-These prompts guide Claude through complex, multi-step tasks that produce structured outputs — campaign briefs, optimization plans, reports, or upload-ready GMP bulk files.
-
-| Prompt | Arguments | What it does |
-|---|---|---|
-| `create_campaign_brief` | `objective`, `platform`, `team_id`, `budget`, `start_date`, `end_date` (optional), `output_format` (optional), `additional_context` (optional) | Generates a full campaign brief informed by team context, historical benchmarks, audience strategy, creative specs, and test learnings. Set `output_format` to `dv360_sdf`, `sa360_bulksheet`, or `cm360_trafficking_sheet` to get upload-ready CSV output instead of a brief narrative. |
-| `optimize_campaign` | `campaign_id`, `date_from`, `date_to`, `output_format` (optional) | Audits an active campaign's performance vs. benchmarks and produces a prioritized optimization action list. Set `output_format` to a GMP platform to get edit rows for bulk upload directly. |
-| `analyze_performance` | `team_id` (optional), `date_from`, `date_to`, `compare_to_prior_period` (optional) | Full portfolio or team performance analysis with KPI scorecard, channel breakdown, trend analysis, top/bottom performers, and recommendations. Automatically calculates the prior period for comparison. |
-| `create_report` | `audience`, `scope`, `date_from`, `date_to`, `template_id` (optional) | Generates an audience-appropriate report (executive, media_team, client, or internal) using your configured reporting templates. `scope` can be `all`, a `team_id`, or a `campaign_id`. |
-| `generate_attribution_report` | `team_id` (optional), `date_from`, `date_to` | Cross-channel model comparison, signal quality assessment, incrementality context, and per-use-case attribution recommendations based on your configured models and measurement setup. |
-| `generate_bulk_upload` | `platform`, `action`, `campaign_id` (optional), `brief_context` (optional) | Generates a ready-to-upload GMP bulk file (DV360 SDF, SA360 Bulksheet, or CM360 Trafficking Sheet) for a given action. Pulls your org defaults from `platforms.json` and pre-fills naming conventions, standard field values, and audience targeting. |
-
-**`output_format` values for `create_campaign_brief` and `optimize_campaign`:**
-
-| Value | Output |
+| Prompt | Description |
 |---|---|
-| `brief` (default) | Narrative campaign brief or optimization action plan |
-| `dv360_sdf` | DV360 SDF v7-compatible CSV sections (Campaign, Insertion Order, Line Item, Ad Group) |
-| `sa360_bulksheet` | SA360 Bulksheet CSV with Row Type column (Campaign, Ad Group, Keyword, Ad) |
-| `cm360_trafficking_sheet` | CM360 Trafficking Sheet column structure (Placement, Ad, Creative) for pasting into the Excel template |
-
-> **CM360 note:** CM360 requires uploading changes via its own Excel template, not a generated CSV. When using CM360 output format, Claude produces column-matching content for you to paste into your downloaded trafficking sheet.
+| `campaign_performance_review` | Generate a structured performance review for a campaign over a given period, including pacing analysis and recommendations. |
+| `team_weekly_report` | Generate a weekly performance report for a media team across all their campaigns. |
+| `attribution_analysis` | Explain how different attribution models would affect campaign credit allocation and recommend the best model for a given objective. |
+| `budget_pacing_check` | Check whether all active campaigns are on track to deliver their budgets by end of flight. |
+| `channel_mix_analysis` | Analyze the current channel/platform mix and recommend optimizations based on performance and objectives. |
+| `test_and_learn_review` | Review the full test-and-learn history for a team, summarize key learnings, and recommend next tests based on gaps in the testing roadmap. |
+| `audience_strategy_review` | Review the full audience strategy for a platform: first-party segments available, lookalike setup, third-party layers in use, and recommendations for improving targeting efficiency. |
+| `measurement_audit` | Audit the full measurement and tracking setup: identify gaps, deduplication risks, signal quality issues, and attribution reliability concerns. |
+| `asset_readiness_check` | Check whether assets are ready for a campaign launch: verify specs compliance, identify missing sizes or formats, and confirm asset locations. |
+| `create_campaign_brief` | Design a new paid media campaign using your team's historical performance, audience library, attribution setup, and platform knowledge. |
+| `optimize_campaign` | Analyze a campaign's performance and produce a prioritized optimization action list. |
+| `analyze_performance` | Generate a comprehensive performance analysis across all campaigns for a team or the full portfolio. |
+| `create_report` | Generate a formatted performance report for a specific audience (executive, media team, client, internal) using your configured reporting templates. |
+| `generate_attribution_report` | Generate a cross-channel attribution analysis comparing how different attribution models distribute credit across platforms and campaigns, and recommend the optimal model for each use case. |
+| `generate_bulk_upload` | Generate a ready-to-upload bulk file for DV360 (SDF), SA360 (Bulksheet), or CM360 (Trafficking Sheet) based on a campaign brief or optimization action list. |
+| `diagnose_tracking_drop` | Watchdog workflow: diagnose a suspected tracking degradation across the full pipeline. |
+| `optimize_high_value_pathways` | Analyst workflow: identify campaigns that are driving outsized pipeline contribution but are being underfunded, and recommend precise budget reallocations grounded in multi-touch attribution data. |
 
 ---
 
