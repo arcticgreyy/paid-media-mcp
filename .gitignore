@@ -2,6 +2,11 @@ node_modules/
 dist/
 *.env
 .env*
+.DS_Store
+
+# Compiled artifact — Vercel builds api/mcp.ts directly (see vercel.json);
+# a committed .js here would shadow the source at deploy time
+api/mcp.js
 
 # Private skills — proprietary prompt files, never commit
 **/skills/private_*.md

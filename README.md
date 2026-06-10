@@ -1023,6 +1023,34 @@ export PAID_MEDIA_BQ_DATASET="paid_media"          # default: paid_media
 export PAID_MEDIA_AGENT_URL="https://your-cloud-run-url"  # optional — agent integration
 ```
 
+**Credential scoping (Vercel / non-GCP hosts):** the service account behind
+`GOOGLE_APPLICATION_CREDENTIALS_JSON` is a full key sitting in a third-party
+host's env store — scope it to the minimum: grant `roles/bigquery.dataViewer`
+**on the one dataset** (not project-wide) plus `roles/bigquery.jobUser` on the
+project. The MCP only reads; it never needs `dataEditor`. Rotate the key
+periodically, and never log or echo the credential object. Longer term,
+prefer Workload Identity Federation over a static key.
+
+```bash
+# Dataset-scoped read access (replace placeholders)
+bq update --dataset \
+  --source <(bq show --format=prettyjson YOUR_PROJECT:paid_media \
+    | jq '.access += [{"role":"READER","userByEmail":"mcp-reader@YOUR_PROJECT.iam.gserviceaccount.com"}]') \
+  YOUR_PROJECT:paid_media
+
+gcloud projects add-iam-policy-binding YOUR_PROJECT \
+  --member="serviceAccount:mcp-reader@YOUR_PROJECT.iam.gserviceaccount.com" \
+  --role="roles/bigquery.jobUser"
+```
+
+**Remote (Vercel) auth:** the `/api/mcp` endpoint requires
+`Authorization: Bearer <MCP_API_KEY>`. Set `MCP_API_KEY` in the Vercel
+dashboard (generate with `openssl rand -hex 32`) and add the matching
+`headers` entry in your Claude Code `settings.json` (see `api/mcp.ts` header
+for the full example). Requests without the key get 401; the server refuses
+to start unauthenticated unless `MCP_ALLOW_UNAUTHENTICATED=true` is set
+explicitly.
+
 The legacy names `BIGQUERY_PROJECT_ID` / `BIGQUERY_DATASET_ID` still work as
 fallbacks (with a deprecation warning); setting old and new names to
 conflicting values fails at startup. All env resolution lives in

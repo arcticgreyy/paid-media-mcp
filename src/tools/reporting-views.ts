@@ -50,7 +50,12 @@ function bqConfig(): { projectId: string; dataset: string } {
 // ── Lazy BigQuery client ──────────────────────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type BqClient = { query: (sql: string, opts?: Record<string, unknown>) => Promise<[Record<string, unknown>[]]> };
+type BqClient = {
+  query: (
+    request: string | { query: string; params?: Record<string, unknown> },
+    opts?: Record<string, unknown>
+  ) => Promise<[Record<string, unknown>[]]>;
+};
 
 let _bqClient: BqClient | null = null;
 
@@ -136,6 +141,7 @@ function truncationNote(total: number): string {
 async function runAnalyticsQuery(
   label: string,
   sql: string,
+  params: Record<string, unknown> = {},
 ): Promise<{ content: [{ type: "text"; text: string }] }> {
   const { projectId, dataset } = bqConfig();
 
@@ -154,7 +160,7 @@ async function runAnalyticsQuery(
 
   try {
     const bq = await getBqClient(projectId);
-    const [rows] = await bq.query(resolvedSql);
+    const [rows] = await bq.query({ query: resolvedSql, params });
 
     if (rows.length === 0) {
       return content(
@@ -210,8 +216,9 @@ function content(text: string): { content: [{ type: "text"; text: string }] } {
 }
 
 // ── Input sanitizers ──────────────────────────────────────────────────────────
-// Defense-in-depth against injection. BQ parameterized queries require a fixed
-// WHERE clause structure; dynamic filter building requires safe interpolation.
+// Defense-in-depth on top of parameterized queries: every filter value is bound
+// as a BigQuery named parameter (@name), and these sanitizers additionally
+// normalize the values before binding.
 
 /** Allow only digits and hyphens; truncate at 10 chars (YYYY-MM-DD). */
 function sanitizeDate(s: string): string {
@@ -230,16 +237,17 @@ function buildDailySpendSql(args: {
   end_date?: string;
   platform?: string;
   campaign_id?: string;
-}): string {
+}): { sql: string; params: Record<string, unknown> } {
   const conds: string[] = [];
-  if (args.start_date)  conds.push(`date >= '${sanitizeDate(args.start_date)}'`);
-  if (args.end_date)    conds.push(`date <= '${sanitizeDate(args.end_date)}'`);
-  if (args.platform)    conds.push(`platform = '${sanitizeStr(args.platform)}'`);
-  if (args.campaign_id) conds.push(`campaign_id = '${sanitizeStr(args.campaign_id)}'`);
+  const params: Record<string, unknown> = {};
+  if (args.start_date)  { conds.push("date >= DATE(@start_date)");        params.start_date = sanitizeDate(args.start_date); }
+  if (args.end_date)    { conds.push("date <= DATE(@end_date)");          params.end_date = sanitizeDate(args.end_date); }
+  if (args.platform)    { conds.push("platform = @platform");       params.platform = sanitizeStr(args.platform); }
+  if (args.campaign_id) { conds.push("campaign_id = @campaign_id"); params.campaign_id = sanitizeStr(args.campaign_id); }
 
   const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
 
-  return `
+  const sql = `
 SELECT
   date,
   platform,
@@ -255,6 +263,7 @@ ${where}
 ORDER BY date DESC, spend_usd DESC
 LIMIT ${MAX_ROWS + 1}
 `.trim();
+  return { sql, params };
 }
 
 function buildRoiSql(args: {
@@ -262,17 +271,18 @@ function buildRoiSql(args: {
   campaign_id?: string;
   period_start_after?: string;
   period_end_before?: string;
-}): string {
+}): { sql: string; params: Record<string, unknown> } {
   const conds: string[] = [];
-  if (args.platform)            conds.push(`platform = '${sanitizeStr(args.platform)}'`);
-  if (args.campaign_id)         conds.push(`campaign_id = '${sanitizeStr(args.campaign_id)}'`);
+  const params: Record<string, unknown> = {};
+  if (args.platform)    { conds.push("platform = @platform");       params.platform = sanitizeStr(args.platform); }
+  if (args.campaign_id) { conds.push("campaign_id = @campaign_id"); params.campaign_id = sanitizeStr(args.campaign_id); }
   // period_start/period_end are MIN(date)/MAX(date) from the underlying spend CTE
-  if (args.period_start_after)  conds.push(`period_start >= '${sanitizeDate(args.period_start_after)}'`);
-  if (args.period_end_before)   conds.push(`period_end <= '${sanitizeDate(args.period_end_before)}'`);
+  if (args.period_start_after) { conds.push("period_start >= DATE(@period_start_after)"); params.period_start_after = sanitizeDate(args.period_start_after); }
+  if (args.period_end_before)  { conds.push("period_end <= DATE(@period_end_before)");    params.period_end_before = sanitizeDate(args.period_end_before); }
 
   const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
 
-  return `
+  const sql = `
 SELECT
   campaign_id,
   campaign_name,
@@ -305,20 +315,22 @@ ${where}
 ORDER BY total_spend DESC
 LIMIT ${MAX_ROWS + 1}
 `.trim();
+  return { sql, params };
 }
 
 function buildPacingSql(args: {
   platform?: string;
   campaign_id?: string;
-}): string {
+}): { sql: string; params: Record<string, unknown> } {
   const conds: string[] = [];
-  if (args.platform)    conds.push(`platform = '${sanitizeStr(args.platform)}'`);
-  if (args.campaign_id) conds.push(`campaign_id = '${sanitizeStr(args.campaign_id)}'`);
+  const params: Record<string, unknown> = {};
+  if (args.platform)    { conds.push("platform = @platform");       params.platform = sanitizeStr(args.platform); }
+  if (args.campaign_id) { conds.push("campaign_id = @campaign_id"); params.campaign_id = sanitizeStr(args.campaign_id); }
 
   // Pacing view is always current-month scoped — no date filter is relevant
   const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
 
-  return `
+  const sql = `
 SELECT
   campaign_id,
   campaign_name,
@@ -344,6 +356,7 @@ ${where}
 ORDER BY mtd_pacing_status, mtd_spend_usd DESC
 LIMIT ${MAX_ROWS + 1}
 `.trim();
+  return { sql, params };
 }
 
 // ── Tool definitions ──────────────────────────────────────────────────────────
@@ -379,14 +392,14 @@ export const reportingViewTools = () => [
       platform?: string;
       campaign_id?: string;
     }) => {
-      const sql = buildDailySpendSql(args);
+      const { sql, params } = buildDailySpendSql(args);
       const parts: string[] = ["Daily Performance Metrics"];
       if (args.platform)    parts.push(args.platform);
       if (args.campaign_id) parts.push(args.campaign_id);
       if (args.start_date || args.end_date) {
         parts.push(`${args.start_date ?? "…"} → ${args.end_date ?? "…"}`);
       }
-      return runAnalyticsQuery(parts.join(" | "), sql);
+      return runAnalyticsQuery(parts.join(" | "), sql, params);
     },
   },
 
@@ -421,7 +434,7 @@ export const reportingViewTools = () => [
       start_date?: string;
       end_date?: string;
     }) => {
-      const sql = buildRoiSql({
+      const { sql, params } = buildRoiSql({
         platform:           args.platform,
         campaign_id:        args.campaign_id,
         period_start_after: args.start_date,
@@ -430,7 +443,7 @@ export const reportingViewTools = () => [
       const parts: string[] = ["Campaign ROI — 3-Tier CPA"];
       if (args.platform)    parts.push(args.platform);
       if (args.campaign_id) parts.push(args.campaign_id);
-      return runAnalyticsQuery(parts.join(" | "), sql);
+      return runAnalyticsQuery(parts.join(" | "), sql, params);
     },
   },
 
@@ -458,11 +471,11 @@ export const reportingViewTools = () => [
       platform?: string;
       campaign_id?: string;
     }) => {
-      const sql = buildPacingSql(args);
+      const { sql, params } = buildPacingSql(args);
       const parts: string[] = ["Monthly Budget Pacing"];
       if (args.platform)    parts.push(args.platform);
       if (args.campaign_id) parts.push(args.campaign_id);
-      return runAnalyticsQuery(parts.join(" | "), sql);
+      return runAnalyticsQuery(parts.join(" | "), sql, params);
     },
   },
 ];

@@ -167,30 +167,33 @@ export class BigQueryAdapter extends FileAdapter {
   override async getCampaigns(filters: CampaignFilters = {}): Promise<Campaign[]> {
     const bq = await this.client();
     const conditions: string[] = [];
+    const params: Record<string, unknown> = {};
 
-    // Column names match paid-media-schema 03_platform.sql: platform_campaigns
-    if (filters.team_id)          conditions.push(`team_id = '${filters.team_id}'`);
-    if (filters.account_id)       conditions.push(`platform_account_id = '${filters.account_id}'`);
-    if (filters.platform)         conditions.push(`platform = '${filters.platform}'`);
-    if (filters.status)           conditions.push(`status = '${filters.status}'`);
-    if (filters.objective)        conditions.push(`objective = '${filters.objective}'`);
-    if (filters.funnel_stage)     conditions.push(`funnel_stage = '${filters.funnel_stage}'`);
-    if (filters.start_date_after) conditions.push(`start_date >= '${filters.start_date_after}'`);
-    if (filters.end_date_before)  conditions.push(`end_date <= '${filters.end_date_before}'`);
+    // Column names match paid-media-schema 03_platform.sql: platform_campaigns.
+    // All filter values arrive via LLM tool args — always bind as named params.
+    if (filters.team_id)          { conditions.push("team_id = @team_id");                 params.team_id = filters.team_id; }
+    if (filters.account_id)       { conditions.push("platform_account_id = @account_id");  params.account_id = filters.account_id; }
+    if (filters.platform)         { conditions.push("platform = @platform");               params.platform = filters.platform; }
+    if (filters.status)           { conditions.push("status = @status");                   params.status = filters.status; }
+    if (filters.objective)        { conditions.push("objective = @objective");             params.objective = filters.objective; }
+    if (filters.funnel_stage)     { conditions.push("funnel_stage = @funnel_stage");       params.funnel_stage = filters.funnel_stage; }
+    if (filters.start_date_after) { conditions.push("start_date >= DATE(@start_date_after)");    params.start_date_after = filters.start_date_after; }
+    if (filters.end_date_before)  { conditions.push("end_date <= DATE(@end_date_before)");       params.end_date_before = filters.end_date_before; }
 
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-    const query = `SELECT * FROM ${this.table("campaigns")} ${where} ORDER BY campaign_name`;
-
-    const [rows] = await bq.query(query);
+    const [rows] = await bq.query({
+      query: `SELECT * FROM ${this.table("campaigns")} ${where} ORDER BY campaign_name`,
+      params,
+    });
     return rows.map(rowToCampaign);
   }
 
   override async getCampaign(id: string): Promise<Campaign | null> {
     const bq = await this.client();
-    const [rows] = await bq.query(
-      `SELECT * FROM ${this.table("campaigns")} WHERE id = @id LIMIT 1`,
-      { params: { id } }
-    );
+    const [rows] = await bq.query({
+      query: `SELECT * FROM ${this.table("campaigns")} WHERE id = @id LIMIT 1`,
+      params: { id },
+    });
     return rows.length ? rowToCampaign(rows[0]) : null;
   }
 
@@ -199,18 +202,22 @@ export class BigQueryAdapter extends FileAdapter {
   override async getPerformance(filters: PerformanceFilters = {}): Promise<PerformanceRecord[]> {
     const bq = await this.client();
     const conditions: string[] = [];
+    const params: Record<string, unknown> = {};
 
     // Column names match paid-media-schema 03_platform.sql: platform_daily_spend
     if (filters.campaign_id) {
-      conditions.push(`p.campaign_id = '${filters.campaign_id}'`);
+      conditions.push("p.campaign_id = @campaign_id");
+      params.campaign_id = filters.campaign_id;
     } else if (filters.team_id) {
-      conditions.push(`c.team_id = '${filters.team_id}'`);
+      conditions.push("c.team_id = @team_id");
+      params.team_id = filters.team_id;
     } else if (filters.platform) {
-      conditions.push(`p.platform = '${filters.platform}'`);
+      conditions.push("p.platform = @platform");
+      params.platform = filters.platform;
     }
 
-    if (filters.date_from) conditions.push(`p.date >= '${filters.date_from}'`);
-    if (filters.date_to)   conditions.push(`p.date <= '${filters.date_to}'`);
+    if (filters.date_from) { conditions.push("p.date >= DATE(@date_from)"); params.date_from = filters.date_from; }
+    if (filters.date_to)   { conditions.push("p.date <= DATE(@date_to)");   params.date_to = filters.date_to; }
 
     const needsJoin = !!(filters.team_id);
     const from = needsJoin
@@ -240,7 +247,7 @@ export class BigQueryAdapter extends FileAdapter {
       LIMIT 10000
     `;
 
-    const [rows] = await bq.query(query);
+    const [rows] = await bq.query({ query, params });
     return rows.map((r: Record<string, unknown>) => ({
       date: String(r.date),
       campaign_id: String(r.campaign_id),
@@ -268,12 +275,14 @@ export class BigQueryAdapter extends FileAdapter {
     try {
       const bq = await this.client();
       const conditions: string[] = [];
-      if (platform)  conditions.push(`platform = '${platform}'`);
-      if (objective) conditions.push(`objective = '${objective}'`);
+      const params: Record<string, unknown> = {};
+      if (platform)  { conditions.push("platform = @platform");   params.platform = platform; }
+      if (objective) { conditions.push("objective = @objective"); params.objective = objective; }
       const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-      const [rows] = await bq.query(
-        `SELECT avg_ctr, avg_cpc, avg_cpm, avg_cpa, avg_roas FROM ${this.table("benchmarks")} ${where} LIMIT 1`
-      );
+      const [rows] = await bq.query({
+        query: `SELECT avg_ctr, avg_cpc, avg_cpm, avg_cpa, avg_roas FROM ${this.table("benchmarks")} ${where} LIMIT 1`,
+        params,
+      });
       if (!rows.length) return null;
       const r = rows[0] as Record<string, unknown>;
       return {
@@ -305,8 +314,11 @@ export class BigQueryAdapter extends FileAdapter {
       if (!runRows.length) return null;
       const run = runRows[0] as Record<string, unknown>;
 
-      const convFilter = conversion_type ? `AND conversion_type = '${conversion_type}'` : "";
-      const [rows] = await bq.query(`
+      const convFilter = conversion_type ? "AND conversion_type = @conversion_type" : "";
+      const params: Record<string, unknown> = { run_id: String(run.run_id) };
+      if (conversion_type) params.conversion_type = conversion_type;
+      const [rows] = await bq.query({
+        query: `
         SELECT
           platform,
           channel,
@@ -318,10 +330,12 @@ export class BigQueryAdapter extends FileAdapter {
           attributed_cpa,
           attributed_roas
         FROM ${this.table("attribution_results")}
-        WHERE run_id = '${String(run.run_id)}'
+        WHERE run_id = @run_id
         ${convFilter}
         ORDER BY attributed_conversions DESC
-      `);
+      `,
+        params,
+      });
 
       return {
         run_id:       String(run.run_id),
@@ -347,15 +361,18 @@ export class BigQueryAdapter extends FileAdapter {
   override async getAttributionRuns(limit = 10): Promise<AttributionRun[]> {
     const bq = await this.client();
     try {
-      const [rows] = await bq.query(`
+      const [rows] = await bq.query({
+        query: `
         SELECT
           run_id, model_name, period_start, period_end,
           paths_modeled, conversions_attributed, identity_match_rate,
           avg_path_length, status, started_at, completed_at, triggered_by
         FROM ${this.table("attribution_runs")}
         ORDER BY started_at DESC
-        LIMIT ${limit}
-      `);
+        LIMIT @limit
+      `,
+        params: { limit: Math.trunc(limit) },
+      });
       return rows.map((r: Record<string, unknown>) => ({
         run_id:                String(r.run_id),
         model_name:            String(r.model_name),
@@ -378,14 +395,17 @@ export class BigQueryAdapter extends FileAdapter {
   override async getWatchdogAlerts(status?: "open" | "acknowledged" | "resolved" | "suppressed"): Promise<WatchdogAlert[]> {
     const bq = await this.client();
     try {
-      const where = status ? `WHERE status = '${status}'` : `WHERE status IN ('open', 'acknowledged')`;
-      const [rows] = await bq.query(`
+      const where = status ? "WHERE status = @status" : "WHERE status IN ('open', 'acknowledged')";
+      const [rows] = await bq.query({
+        query: `
         SELECT *
         FROM ${this.table("watchdog_alerts")}
         ${where}
         ORDER BY detected_at DESC
         LIMIT 50
-      `);
+      `,
+        params: status ? { status } : {},
+      });
       return rows.map((r: Record<string, unknown>) => ({
         alert_id:           String(r.alert_id),
         alert_type:         String(r.alert_type),
@@ -411,16 +431,20 @@ export class BigQueryAdapter extends FileAdapter {
     const bq = await this.client();
     try {
       const conditions: string[] = [];
-      if (filters.priority) conditions.push(`priority = '${filters.priority}'`);
-      if (filters.status)   conditions.push(`status = '${filters.status}'`);
+      const params: Record<string, unknown> = { limit: Math.trunc(filters.limit ?? 20) };
+      if (filters.priority) { conditions.push("priority = @priority"); params.priority = filters.priority; }
+      if (filters.status)   { conditions.push("status = @status");     params.status = filters.status; }
       const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-      const [rows] = await bq.query(`
+      const [rows] = await bq.query({
+        query: `
         SELECT *
         FROM ${this.table("analyst_insights")}
         ${where}
         ORDER BY generated_at DESC
-        LIMIT ${filters.limit ?? 20}
-      `);
+        LIMIT @limit
+      `,
+        params,
+      });
       return rows.map((r: Record<string, unknown>) => ({
         insight_id:        String(r.insight_id),
         insight_type:      String(r.insight_type),
@@ -475,18 +499,20 @@ export class BigQueryAdapter extends FileAdapter {
   ) {
     const bq = await this.client();
     const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
-    const convFilter = conversion_type ? `AND c.conversion_type = '${conversion_type}'` : "";
+    const convFilter = conversion_type ? "AND c.conversion_type = @conversion_type" : "";
+    const lookback = Math.trunc(lookback_days);
 
     try {
-      const [touchRows] = await bq.query(`
+      const [touchRows] = await bq.query({
+        query: `
         WITH account_entities AS (
           -- Find canonical entities linked to this domain
           SELECT DISTINCT ies.entity_id
           FROM ${ds}.identity_entity_signals ies
           JOIN ${ds}.identity_entities e ON e.entity_id = ies.entity_id
           WHERE (
-            e.company_domain = '${account_domain}'
-            OR ies.identifier_value = '${account_domain}'
+            e.company_domain = @account_domain
+            OR ies.identifier_value = @account_domain
           )
           AND ies.is_active = TRUE
         )
@@ -511,27 +537,34 @@ export class BigQueryAdapter extends FileAdapter {
             SELECT run_id FROM ${ds}.attribution_runs
             WHERE status = 'completed' ORDER BY completed_at DESC LIMIT 1
           )
-        WHERE t.touchpoint_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL ${lookback_days} DAY)
+        WHERE t.touchpoint_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL @lookback_days DAY)
         ORDER BY t.touchpoint_at ASC
         LIMIT 500
-      `);
+      `,
+        params: { account_domain, lookback_days: lookback },
+      });
 
-      const [convRows] = await bq.query(`
+      const convParams: Record<string, unknown> = { account_domain, lookback_days: lookback };
+      if (conversion_type) convParams.conversion_type = conversion_type;
+      const [convRows] = await bq.query({
+        query: `
         WITH account_entities AS (
           SELECT DISTINCT ies.entity_id
           FROM ${ds}.identity_entity_signals ies
           JOIN ${ds}.identity_entities e ON e.entity_id = ies.entity_id
-          WHERE e.company_domain = '${account_domain}' AND ies.is_active = TRUE
+          WHERE e.company_domain = @account_domain AND ies.is_active = TRUE
         )
         SELECT
           c.conversion_id, c.entity_id, c.converted_at,
           c.conversion_type, c.conversion_value, c.deal_value, c.pipeline_stage
         FROM ${ds}.conversion_events c
         JOIN account_entities ae ON ae.entity_id = c.entity_id
-        WHERE c.converted_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL ${lookback_days} DAY)
+        WHERE c.converted_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL @lookback_days DAY)
         ${convFilter}
         ORDER BY c.converted_at ASC
-      `);
+      `,
+        params: convParams,
+      });
 
       const entities = new Set((touchRows as Record<string, unknown>[]).map(r => String(r.entity_id)));
       const channels = [...new Set((touchRows as Record<string, unknown>[]).map(r => String(r.channel)))];
@@ -559,9 +592,12 @@ export class BigQueryAdapter extends FileAdapter {
   override async getSignalCaptureRates(hours_back: number, platform?: string): Promise<object[]> {
     const bq = await this.client();
     const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
-    const pFilter = platform ? `AND platform = '${platform}'` : "";
+    const pFilter = platform ? "AND platform = @platform" : "";
+    const params: Record<string, unknown> = { hours_back: Math.trunc(hours_back) };
+    if (platform) params.platform = platform;
     try {
-      const [rows] = await bq.query(`
+      const [rows] = await bq.query({
+        query: `
         SELECT
           namespace_id,
           platform,
@@ -572,11 +608,13 @@ export class BigQueryAdapter extends FileAdapter {
           COUNTIF(is_anomaly)                      AS anomaly_count,
           MAX(logged_at)                           AS last_logged_at
         FROM ${ds}.watchdog_capture_rate_log
-        WHERE logged_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL ${hours_back} HOUR)
+        WHERE logged_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL @hours_back HOUR)
         ${pFilter}
         GROUP BY namespace_id, platform
         ORDER BY avg_capture_rate_pct ASC
-      `);
+      `,
+        params,
+      });
       return rows as object[];
     } catch { return []; }
   }
@@ -585,15 +623,18 @@ export class BigQueryAdapter extends FileAdapter {
     const bq = await this.client();
     const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
     try {
-      const [rows] = await bq.query(`
+      const [rows] = await bq.query({
+        query: `
         SELECT
           COUNTIF(gclid IS NULL AND fbclid IS NULL AND li_fat_id IS NULL
                   AND ttclid IS NULL AND ga_client_id IS NULL) AS null_media_ids,
           COUNTIF(utm_source IS NULL OR utm_source = '')        AS null_utm,
           COUNT(*)                                               AS total_leads
         FROM ${ds}.crm_leads_staging
-        WHERE created_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL ${since_hours} HOUR)
-      `);
+        WHERE created_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL @since_hours HOUR)
+      `,
+        params: { since_hours: Math.trunc(since_hours) },
+      });
       if (!rows.length) return null;
       const r = rows[0] as Record<string, unknown>;
       const total = Number(r.total_leads ?? 0);
@@ -631,19 +672,23 @@ export class BigQueryAdapter extends FileAdapter {
     const bq = await this.client();
     const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
     const conditions: string[] = [];
-    if (filters.platform)     conditions.push(`platform = '${filters.platform}'`);
-    if (filters.team_id)      conditions.push(`team_id = '${filters.team_id}'`);
-    if (filters.funnel_stage) conditions.push(`funnel_stage = '${filters.funnel_stage}'`);
-    if (filters.status)       conditions.push(`campaign_status = '${filters.status}'`);
+    const params: Record<string, unknown> = {};
+    if (filters.platform)     { conditions.push("platform = @platform");           params.platform = filters.platform; }
+    if (filters.team_id)      { conditions.push("team_id = @team_id");             params.team_id = filters.team_id; }
+    if (filters.funnel_stage) { conditions.push("funnel_stage = @funnel_stage");   params.funnel_stage = filters.funnel_stage; }
+    if (filters.status)       { conditions.push("campaign_status = @status");      params.status = filters.status; }
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
     try {
-      const [rows] = await bq.query(`
+      const [rows] = await bq.query({
+        query: `
         SELECT *
         FROM ${ds}.v_campaign_performance
         ${where}
         ORDER BY total_spend DESC
         LIMIT 500
-      `);
+      `,
+        params,
+      });
       return rows as object[];
     } catch { return []; }
   }
@@ -661,13 +706,15 @@ export class BigQueryAdapter extends FileAdapter {
     const bq = await this.client();
     const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
     const conditions: string[] = [];
-    if (filters.platform)      conditions.push(`platform = '${filters.platform}'`);
-    if (filters.team_id)       conditions.push(`team_id = '${filters.team_id}'`);
-    if (filters.pacing_status) conditions.push(`pacing_status = '${filters.pacing_status}'`);
-    if (filters.funnel_stage)  conditions.push(`funnel_stage = '${filters.funnel_stage}'`);
+    const params: Record<string, unknown> = {};
+    if (filters.platform)      { conditions.push("platform = @platform");             params.platform = filters.platform; }
+    if (filters.team_id)       { conditions.push("team_id = @team_id");               params.team_id = filters.team_id; }
+    if (filters.pacing_status) { conditions.push("pacing_status = @pacing_status");   params.pacing_status = filters.pacing_status; }
+    if (filters.funnel_stage)  { conditions.push("funnel_stage = @funnel_stage");     params.funnel_stage = filters.funnel_stage; }
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
     try {
-      const [rows] = await bq.query(`
+      const [rows] = await bq.query({
+        query: `
         SELECT *
         FROM ${ds}.v_pacing_status
         ${where}
@@ -680,7 +727,9 @@ export class BigQueryAdapter extends FileAdapter {
           END,
           ABS(COALESCE(pacing_variance_amount, 0)) DESC
         LIMIT 500
-      `);
+      `,
+        params,
+      });
       return rows as object[];
     } catch { return []; }
   }
@@ -697,17 +746,21 @@ export class BigQueryAdapter extends FileAdapter {
     const bq = await this.client();
     const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
     const conditions: string[] = [];
-    if (filters.platform)        conditions.push(`platform = '${filters.platform}'`);
-    if (filters.channel)         conditions.push(`channel = '${filters.channel}'`);
-    if (filters.conversion_type) conditions.push(`conversion_type = '${filters.conversion_type}'`);
+    const params: Record<string, unknown> = {};
+    if (filters.platform)        { conditions.push("platform = @platform");                 params.platform = filters.platform; }
+    if (filters.channel)         { conditions.push("channel = @channel");                   params.channel = filters.channel; }
+    if (filters.conversion_type) { conditions.push("conversion_type = @conversion_type");   params.conversion_type = filters.conversion_type; }
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
     try {
-      const [rows] = await bq.query(`
+      const [rows] = await bq.query({
+        query: `
         SELECT *
         FROM ${ds}.v_roas_comparison
         ${where}
         ORDER BY total_spend DESC
-      `);
+      `,
+        params,
+      });
       return rows as object[];
     } catch { return []; }
   }
@@ -742,19 +795,23 @@ export class BigQueryAdapter extends FileAdapter {
     const bq = await this.client();
     const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
     const conditions: string[] = [];
-    if (filters.campaign_id)     conditions.push(`campaign_id = '${filters.campaign_id}'`);
-    if (filters.platform)        conditions.push(`platform = '${filters.platform}'`);
-    if (filters.creative_format) conditions.push(`creative_format = '${filters.creative_format}'`);
-    if (filters.min_spend != null) conditions.push(`total_spend >= ${filters.min_spend}`);
+    const params: Record<string, unknown> = {};
+    if (filters.campaign_id)     { conditions.push("campaign_id = @campaign_id");           params.campaign_id = filters.campaign_id; }
+    if (filters.platform)        { conditions.push("platform = @platform");                 params.platform = filters.platform; }
+    if (filters.creative_format) { conditions.push("creative_format = @creative_format");   params.creative_format = filters.creative_format; }
+    if (filters.min_spend != null) { conditions.push("total_spend >= @min_spend");          params.min_spend = filters.min_spend; }
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
     try {
-      const [rows] = await bq.query(`
+      const [rows] = await bq.query({
+        query: `
         SELECT *
         FROM ${ds}.v_ad_performance
         ${where}
         ORDER BY total_spend DESC
         LIMIT 500
-      `);
+      `,
+        params,
+      });
       return rows as object[];
     } catch { return []; }
   }
@@ -773,20 +830,24 @@ export class BigQueryAdapter extends FileAdapter {
     const bq = await this.client();
     const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
     const conditions: string[] = [];
-    if (filters.campaign_id)   conditions.push(`campaign_id = '${filters.campaign_id}'`);
-    if (filters.platform)      conditions.push(`platform = '${filters.platform}'`);
-    if (filters.min_spend != null) conditions.push(`total_spend >= ${filters.min_spend}`);
-    if (filters.low_quality_score) conditions.push(`quality_score <= 5`);
-    if (filters.lost_is_budget)    conditions.push(`avg_is_lost_budget > 0.1`);
+    const params: Record<string, unknown> = {};
+    if (filters.campaign_id)   { conditions.push("campaign_id = @campaign_id");   params.campaign_id = filters.campaign_id; }
+    if (filters.platform)      { conditions.push("platform = @platform");         params.platform = filters.platform; }
+    if (filters.min_spend != null) { conditions.push("total_spend >= @min_spend"); params.min_spend = filters.min_spend; }
+    if (filters.low_quality_score) conditions.push("quality_score <= 5");
+    if (filters.lost_is_budget)    conditions.push("avg_is_lost_budget > 0.1");
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
     try {
-      const [rows] = await bq.query(`
+      const [rows] = await bq.query({
+        query: `
         SELECT *
         FROM ${ds}.v_keyword_performance
         ${where}
         ORDER BY total_spend DESC
         LIMIT 1000
-      `);
+      `,
+        params,
+      });
       return rows as object[];
     } catch { return []; }
   }
@@ -809,10 +870,11 @@ export class BigQueryAdapter extends FileAdapter {
     const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
 
     const conditions: string[] = [];
-    if (filters.campaign_id) conditions.push(`s.campaign_id = '${filters.campaign_id}'`);
-    if (filters.platform)    conditions.push(`s.platform = '${filters.platform}'`);
-    if (filters.date_from)   conditions.push(`s.date >= '${filters.date_from}'`);
-    if (filters.date_to)     conditions.push(`s.date <= '${filters.date_to}'`);
+    const params: Record<string, unknown> = {};
+    if (filters.campaign_id) { conditions.push("s.campaign_id = @campaign_id"); params.campaign_id = filters.campaign_id; }
+    if (filters.platform)    { conditions.push("s.platform = @platform");       params.platform = filters.platform; }
+    if (filters.date_from)   { conditions.push("s.date >= DATE(@date_from)");         params.date_from = filters.date_from; }
+    if (filters.date_to)     { conditions.push("s.date <= DATE(@date_to)");           params.date_to = filters.date_to; }
     // team_id not on platform_daily_spend — skip silently
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
@@ -829,7 +891,8 @@ export class BigQueryAdapter extends FileAdapter {
     // This keeps the SELECT consistent (all metrics use SUM) and avoids BigQuery
     // "neither grouped nor aggregated" errors.
     try {
-      const [rows] = await bq.query(`
+      const [rows] = await bq.query({
+        query: `
         SELECT
           ${periodExpr}                          AS period,
           s.platform,
@@ -853,7 +916,9 @@ export class BigQueryAdapter extends FileAdapter {
         GROUP BY period, s.platform, s.campaign_id
         ORDER BY period DESC
         LIMIT 10000
-      `);
+      `,
+        params,
+      });
       return rows as object[];
     } catch (err) {
       console.error("[paid-media-mcp] getDailyPerformance error:", err);
@@ -873,13 +938,16 @@ export class BigQueryAdapter extends FileAdapter {
     const bq = await this.client();
     const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
     try {
-      const [rows] = await bq.query(`
+      const [rows] = await bq.query({
+        query: `
         SELECT *
         FROM ${ds}.company_profiles
-        WHERE company_domain = '${company_domain}'
+        WHERE company_domain = @company_domain
           AND is_active = TRUE
         LIMIT 1
-      `);
+      `,
+        params: { company_domain },
+      });
       return rows.length ? rows[0] : null;
     } catch { return null; }
   }
@@ -900,20 +968,24 @@ export class BigQueryAdapter extends FileAdapter {
     const bq = await this.client();
     const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
     const conditions: string[] = [];
-    if (filters.account_tier)       conditions.push(`account_tier = '${filters.account_tier}'`);
-    if (filters.crm_pipeline_stage) conditions.push(`crm_pipeline_stage = '${filters.crm_pipeline_stage}'`);
-    if (filters.intent_spiking != null) conditions.push(`intent_spiking = ${filters.intent_spiking}`);
-    if (filters.is_suppressed_tofu != null) conditions.push(`is_suppressed_tofu = ${filters.is_suppressed_tofu}`);
-    if (filters.min_sessions_30d != null) conditions.push(`sessions_30d >= ${filters.min_sessions_30d}`);
+    const params: Record<string, unknown> = { limit: Math.trunc(filters.limit ?? 100) };
+    if (filters.account_tier)       { conditions.push("account_tier = @account_tier");             params.account_tier = filters.account_tier; }
+    if (filters.crm_pipeline_stage) { conditions.push("crm_pipeline_stage = @crm_pipeline_stage"); params.crm_pipeline_stage = filters.crm_pipeline_stage; }
+    if (filters.intent_spiking != null)     { conditions.push("intent_spiking = @intent_spiking");         params.intent_spiking = filters.intent_spiking; }
+    if (filters.is_suppressed_tofu != null) { conditions.push("is_suppressed_tofu = @is_suppressed_tofu"); params.is_suppressed_tofu = filters.is_suppressed_tofu; }
+    if (filters.min_sessions_30d != null)   { conditions.push("sessions_30d >= @min_sessions_30d");        params.min_sessions_30d = Math.trunc(filters.min_sessions_30d); }
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
     try {
-      const [rows] = await bq.query(`
+      const [rows] = await bq.query({
+        query: `
         SELECT *
         FROM ${ds}.v_target_account_funnel
         ${where}
         ORDER BY funnel_priority_score DESC, account_tier_rank ASC
-        LIMIT ${filters.limit ?? 100}
-      `);
+        LIMIT @limit
+      `,
+        params,
+      });
       return rows as object[];
     } catch { return []; }
   }
@@ -926,7 +998,8 @@ export class BigQueryAdapter extends FileAdapter {
     const bq = await this.client();
     const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
     try {
-      const [rows] = await bq.query(`
+      const [rows] = await bq.query({
+        query: `
         SELECT
           session_id, session_date, session_start_at, session_duration_seconds,
           page_count, channel_grouping, landing_page, utm_campaign,
@@ -934,11 +1007,13 @@ export class BigQueryAdapter extends FileAdapter {
           has_paid_touchpoint, paid_touchpoint_platform, paid_touchpoint_campaign_id,
           crm_pipeline_stage, is_target_account, resolution_method, resolution_confidence
         FROM ${ds}.company_sessions
-        WHERE company_domain = '${company_domain}'
-          AND session_date >= DATE_SUB(CURRENT_DATE(), INTERVAL ${lookback_days} DAY)
+        WHERE company_domain = @company_domain
+          AND session_date >= DATE_SUB(CURRENT_DATE(), INTERVAL @lookback_days DAY)
         ORDER BY session_date DESC
         LIMIT 500
-      `);
+      `,
+        params: { company_domain, lookback_days: Math.trunc(lookback_days) },
+      });
       return rows as object[];
     } catch { return []; }
   }
@@ -951,14 +1026,17 @@ export class BigQueryAdapter extends FileAdapter {
     const bq = await this.client();
     const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
     try {
-      const [rows] = await bq.query(`
+      const [rows] = await bq.query({
+        query: `
         SELECT *
         FROM ${ds}.company_engagement
-        WHERE company_domain = '${company_domain}'
-          AND period_type = '${period_type}'
+        WHERE company_domain = @company_domain
+          AND period_type = @period_type
         ORDER BY period_start DESC
         LIMIT 1
-      `);
+      `,
+        params: { company_domain, period_type },
+      });
       return rows.length ? rows[0] : null;
     } catch { return null; }
   }
@@ -975,18 +1053,22 @@ export class BigQueryAdapter extends FileAdapter {
     const bq = await this.client();
     const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
     const conditions: string[] = [];
-    if (filters.account_tier)        conditions.push(`account_tier = '${filters.account_tier}'`);
-    if (filters.web_presence_status) conditions.push(`web_presence_status = '${filters.web_presence_status}'`);
-    if (filters.crm_pipeline_stage)  conditions.push(`crm_pipeline_stage = '${filters.crm_pipeline_stage}'`);
+    const params: Record<string, unknown> = {};
+    if (filters.account_tier)        { conditions.push("account_tier = @account_tier");               params.account_tier = filters.account_tier; }
+    if (filters.web_presence_status) { conditions.push("web_presence_status = @web_presence_status"); params.web_presence_status = filters.web_presence_status; }
+    if (filters.crm_pipeline_stage)  { conditions.push("crm_pipeline_stage = @crm_pipeline_stage");   params.crm_pipeline_stage = filters.crm_pipeline_stage; }
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
     try {
-      const [rows] = await bq.query(`
+      const [rows] = await bq.query({
+        query: `
         SELECT *
         FROM ${ds}.v_dark_funnel_coverage
         ${where}
         ORDER BY tier_rank ASC, icp_score DESC
         LIMIT 500
-      `);
+      `,
+        params,
+      });
       return rows as object[];
     } catch { return []; }
   }
@@ -999,14 +1081,17 @@ export class BigQueryAdapter extends FileAdapter {
     const bq = await this.client();
     const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
     try {
-      const [rows] = await bq.query(`
+      const [rows] = await bq.query({
+        query: `
         SELECT *
         FROM ${ds}.target_account_activity
-        WHERE company_domain = '${company_domain}'
-          AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL ${lookback_days} DAY)
+        WHERE company_domain = @company_domain
+          AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL @lookback_days DAY)
         ORDER BY date DESC
-        LIMIT ${lookback_days}
-      `);
+        LIMIT @lookback_days
+      `,
+        params: { company_domain, lookback_days: Math.trunc(lookback_days) },
+      });
       return rows as object[];
     } catch { return []; }
   }
