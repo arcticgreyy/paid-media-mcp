@@ -52,7 +52,12 @@ function bqConfig(): { projectId: string; dataset: string } {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type BqClient = {
   query: (
-    request: string | { query: string; params?: Record<string, unknown> },
+    request: string | {
+      query: string;
+      params?: Record<string, unknown>;
+      maximumBytesBilled?: string;
+      jobTimeoutMs?: string;
+    },
     opts?: Record<string, unknown>
   ) => Promise<[Record<string, unknown>[]]>;
 };
@@ -160,7 +165,12 @@ async function runAnalyticsQuery(
 
   try {
     const bq = await getBqClient(projectId);
-    const [rows] = await bq.query({ query: resolvedSql, params });
+    const [rows] = await bq.query({
+      query: resolvedSql,
+      params,
+      maximumBytesBilled: "2000000000", // 2 GB scan budget per query
+      jobTimeoutMs: "60000",
+    });
 
     if (rows.length === 0) {
       return content(

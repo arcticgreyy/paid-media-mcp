@@ -25,6 +25,17 @@
 import { z } from "zod";
 import type { PaidMediaAdapter } from "../adapters/base.js";
 
+// ── Local guardrails (defense-in-depth) ─────────────────────────────────────
+// Authoritative enforcement lives server-side in the agent (MAX_BUDGET_SHIFT_PCT
+// inside the platform clients, OPERATOR_REQUIRE_APPROVAL). These local checks
+// reject obviously-bad requests before they leave the MCP at all.
+
+/** Sanity ceiling on a single budget move via this tool. */
+const MAX_SINGLE_MOVE_USD = 100_000;
+/** Cap on domains per suppression push (platform list APIs choke beyond this). */
+const MAX_DOMAINS_PER_PUSH = 10_000;
+const DOMAIN_RE = /^[a-z0-9][a-z0-9.-]{0,252}[a-z0-9]$/;
+
 export const mediaActionTools = (adapter: PaidMediaAdapter) => [
 
   {
@@ -50,6 +61,8 @@ export const mediaActionTools = (adapter: PaidMediaAdapter) => [
         .describe("The exclusion audience list ID in the platform"),
       domains: z
         .array(z.string())
+        .min(1)
+        .max(MAX_DOMAINS_PER_PUSH)
         .describe(
           "Company domains to exclude, e.g. ['acme.com', 'bigcorp.io']. " +
           "Get these from get_accounts_in_open_pipeline or a Salesforce export."
@@ -68,6 +81,18 @@ export const mediaActionTools = (adapter: PaidMediaAdapter) => [
       domains: string[];
       rationale: string;
     }) => {
+      const invalid = args.domains.filter((d) => !DOMAIN_RE.test(d.toLowerCase().trim()));
+      if (invalid.length) {
+        return {
+          content: [{
+            type: "text",
+            text:
+              `Rejected locally: ${invalid.length} entr${invalid.length === 1 ? "y" : "ies"} ` +
+              `do not look like domains (first few: ${invalid.slice(0, 5).join(", ")}). ` +
+              "Pass bare domains like 'acme.com' — no URLs, schemes, or paths.",
+          }],
+        };
+      }
       const result = await adapter.pushAudienceSuppression(
         args.platform,
         args.advertiser_id,
@@ -109,7 +134,10 @@ export const mediaActionTools = (adapter: PaidMediaAdapter) => [
         .describe("The high-performing campaign or line item to increase budget for"),
       amount_usd: z
         .number()
-        .describe("Dollar amount to move. Will be rejected if it exceeds the guardrail cap."),
+        .describe(
+          "Dollar amount to move. Must be positive; the agent additionally rejects moves " +
+          "exceeding its MAX_BUDGET_SHIFT_PCT cap against the live campaign budget."
+        ),
       rationale: z
         .string()
         .describe(
@@ -126,6 +154,29 @@ export const mediaActionTools = (adapter: PaidMediaAdapter) => [
       amount_usd: number;
       rationale: string;
     }) => {
+      // The authoritative ±MAX_BUDGET_SHIFT_PCT check needs the live campaign
+      // budget and runs in the agent; these are the cheap local rejections.
+      if (!Number.isFinite(args.amount_usd) || args.amount_usd <= 0) {
+        return {
+          content: [{ type: "text", text: "Rejected locally: amount_usd must be a positive number." }],
+        };
+      }
+      if (args.amount_usd > MAX_SINGLE_MOVE_USD) {
+        return {
+          content: [{
+            type: "text",
+            text:
+              `Rejected locally: amount_usd $${args.amount_usd.toLocaleString()} exceeds the ` +
+              `$${MAX_SINGLE_MOVE_USD.toLocaleString()} single-move sanity ceiling. ` +
+              "Split the reallocation or run it through an MMM package with human approval.",
+          }],
+        };
+      }
+      if (args.source_campaign_id === args.target_campaign_id) {
+        return {
+          content: [{ type: "text", text: "Rejected locally: source and target campaign are the same." }],
+        };
+      }
       const result = await adapter.reallocateMediaBudget(
         args.platform,
         args.advertiser_id,

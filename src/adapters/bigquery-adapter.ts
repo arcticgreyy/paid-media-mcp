@@ -158,6 +158,54 @@ export class BigQueryAdapter extends FileAdapter {
     return this.bq;
   }
 
+  // ── Cost / safety controls (every query goes through runQuery) ─────────────
+  /** Hard ceiling on rows returned to the MCP context window. */
+  private static readonly MAX_ROWS = 500;
+  /** Per-query scan budget — queries billing more than this fail fast. */
+  private static readonly MAX_BYTES_BILLED = "2000000000"; // 2 GB
+  /** Server-side job timeout. */
+  private static readonly JOB_TIMEOUT_MS = "60000";
+  private static readonly TRANSIENT_ERROR =
+    /rate ?limit|backend ?error|internal ?error|temporarily unavailable|connection reset|socket hang up|ECONNRESET|ETIMEDOUT|50[234]/i;
+
+  /**
+   * Central query runner: applies maximumBytesBilled + job timeout, retries
+   * once on transient BigQuery errors, and truncates results to maxRows so a
+   * broad filter can't blow up the agent context (or the scan bill).
+   */
+  private async runQuery(
+    request: { query: string; params?: Record<string, unknown> },
+    maxRows: number = BigQueryAdapter.MAX_ROWS,
+  ): Promise<Record<string, unknown>[]> {
+    const bq = await this.client();
+    const fullRequest = {
+      ...request,
+      maximumBytesBilled: BigQueryAdapter.MAX_BYTES_BILLED,
+      jobTimeoutMs: BigQueryAdapter.JOB_TIMEOUT_MS,
+    };
+    for (let attempt = 1; ; attempt++) {
+      try {
+        const [rows] = await bq.query(fullRequest);
+        if (rows.length > maxRows) {
+          console.error(
+            `[BigQueryAdapter] result truncated ${rows.length} → ${maxRows} rows — ` +
+            "apply tighter filters to see the rest"
+          );
+          return (rows as Record<string, unknown>[]).slice(0, maxRows);
+        }
+        return rows as Record<string, unknown>[];
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (attempt === 1 && BigQueryAdapter.TRANSIENT_ERROR.test(msg)) {
+          console.error(`[BigQueryAdapter] transient error, retrying once: ${msg.slice(0, 200)}`);
+          await new Promise((r) => setTimeout(r, 1000));
+          continue;
+        }
+        throw err;
+      }
+    }
+  }
+
   private table(name: keyof Required<NonNullable<BigQueryAdapterConfig["tables"]>>): string {
     return `\`${this.config.projectId}.${this.config.dataset}.${this.config.tables[name]}\``;
   }
@@ -165,7 +213,6 @@ export class BigQueryAdapter extends FileAdapter {
   // ── Campaigns ──────────────────────────────────────────────────────────────
 
   override async getCampaigns(filters: CampaignFilters = {}): Promise<Campaign[]> {
-    const bq = await this.client();
     const conditions: string[] = [];
     const params: Record<string, unknown> = {};
 
@@ -181,7 +228,7 @@ export class BigQueryAdapter extends FileAdapter {
     if (filters.end_date_before)  { conditions.push("end_date <= DATE(@end_date_before)");       params.end_date_before = filters.end_date_before; }
 
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-    const [rows] = await bq.query({
+    const rows = await this.runQuery({
       query: `SELECT * FROM ${this.table("campaigns")} ${where} ORDER BY campaign_name`,
       params,
     });
@@ -189,8 +236,7 @@ export class BigQueryAdapter extends FileAdapter {
   }
 
   override async getCampaign(id: string): Promise<Campaign | null> {
-    const bq = await this.client();
-    const [rows] = await bq.query({
+    const rows = await this.runQuery({
       query: `SELECT * FROM ${this.table("campaigns")} WHERE id = @id LIMIT 1`,
       params: { id },
     });
@@ -200,7 +246,6 @@ export class BigQueryAdapter extends FileAdapter {
   // ── Performance ────────────────────────────────────────────────────────────
 
   override async getPerformance(filters: PerformanceFilters = {}): Promise<PerformanceRecord[]> {
-    const bq = await this.client();
     const conditions: string[] = [];
     const params: Record<string, unknown> = {};
 
@@ -247,7 +292,7 @@ export class BigQueryAdapter extends FileAdapter {
       LIMIT 10000
     `;
 
-    const [rows] = await bq.query({ query, params });
+    const rows = await this.runQuery({ query, params });
     return rows.map((r: Record<string, unknown>) => ({
       date: String(r.date),
       campaign_id: String(r.campaign_id),
@@ -279,7 +324,7 @@ export class BigQueryAdapter extends FileAdapter {
       if (platform)  { conditions.push("platform = @platform");   params.platform = platform; }
       if (objective) { conditions.push("objective = @objective"); params.objective = objective; }
       const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-      const [rows] = await bq.query({
+      const rows = await this.runQuery({
         query: `SELECT avg_ctr, avg_cpc, avg_cpm, avg_cpa, avg_roas FROM ${this.table("benchmarks")} ${where} LIMIT 1`,
         params,
       });
@@ -301,23 +346,22 @@ export class BigQueryAdapter extends FileAdapter {
   // ── Attribution Results ─────────────────────────────────────────────────────
 
   override async getLatestAttributionResults(conversion_type?: string): Promise<AttributionChannelSummary | null> {
-    const bq = await this.client();
     try {
       // Get the most recent completed run
-      const [runRows] = await bq.query(`
+      const runRows = await this.runQuery({ query: `
         SELECT run_id, model_name, period_start, period_end, completed_at
         FROM ${this.table("attribution_runs")}
         WHERE status = 'completed'
         ORDER BY completed_at DESC
         LIMIT 1
-      `);
+      ` });
       if (!runRows.length) return null;
       const run = runRows[0] as Record<string, unknown>;
 
       const convFilter = conversion_type ? "AND conversion_type = @conversion_type" : "";
       const params: Record<string, unknown> = { run_id: String(run.run_id) };
       if (conversion_type) params.conversion_type = conversion_type;
-      const [rows] = await bq.query({
+      const rows = await this.runQuery({
         query: `
         SELECT
           platform,
@@ -359,9 +403,8 @@ export class BigQueryAdapter extends FileAdapter {
   }
 
   override async getAttributionRuns(limit = 10): Promise<AttributionRun[]> {
-    const bq = await this.client();
     try {
-      const [rows] = await bq.query({
+      const rows = await this.runQuery({
         query: `
         SELECT
           run_id, model_name, period_start, period_end,
@@ -393,10 +436,9 @@ export class BigQueryAdapter extends FileAdapter {
   // ── Agent Outputs ───────────────────────────────────────────────────────────
 
   override async getWatchdogAlerts(status?: "open" | "acknowledged" | "resolved" | "suppressed"): Promise<WatchdogAlert[]> {
-    const bq = await this.client();
     try {
       const where = status ? "WHERE status = @status" : "WHERE status IN ('open', 'acknowledged')";
-      const [rows] = await bq.query({
+      const rows = await this.runQuery({
         query: `
         SELECT *
         FROM ${this.table("watchdog_alerts")}
@@ -428,14 +470,13 @@ export class BigQueryAdapter extends FileAdapter {
   override async getAnalystInsights(
     filters: { priority?: "high" | "medium" | "low"; status?: string; limit?: number } = {}
   ): Promise<AnalystInsight[]> {
-    const bq = await this.client();
     try {
       const conditions: string[] = [];
       const params: Record<string, unknown> = { limit: Math.trunc(filters.limit ?? 20) };
       if (filters.priority) { conditions.push("priority = @priority"); params.priority = filters.priority; }
       if (filters.status)   { conditions.push("status = @status");     params.status = filters.status; }
       const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-      const [rows] = await bq.query({
+      const rows = await this.runQuery({
         query: `
         SELECT *
         FROM ${this.table("analyst_insights")}
@@ -466,13 +507,12 @@ export class BigQueryAdapter extends FileAdapter {
   }
 
   override async getOperatorPendingApprovals(): Promise<OperatorPendingApproval[]> {
-    const bq = await this.client();
     try {
-      const [rows] = await bq.query(`
+      const rows = await this.runQuery({ query: `
         SELECT *
         FROM ${this.table("pending_approvals")}
         ORDER BY proposed_at ASC
-      `);
+      ` });
       return rows.map((r: Record<string, unknown>) => ({
         action_id:            String(r.action_id),
         platform:             String(r.platform),
@@ -497,13 +537,12 @@ export class BigQueryAdapter extends FileAdapter {
     lookback_days: number,
     conversion_type?: string
   ) {
-    const bq = await this.client();
     const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
     const convFilter = conversion_type ? "AND c.conversion_type = @conversion_type" : "";
     const lookback = Math.trunc(lookback_days);
 
     try {
-      const [touchRows] = await bq.query({
+      const touchRows = await this.runQuery({
         query: `
         WITH account_entities AS (
           -- Find canonical entities linked to this domain
@@ -546,7 +585,7 @@ export class BigQueryAdapter extends FileAdapter {
 
       const convParams: Record<string, unknown> = { account_domain, lookback_days: lookback };
       if (conversion_type) convParams.conversion_type = conversion_type;
-      const [convRows] = await bq.query({
+      const convRows = await this.runQuery({
         query: `
         WITH account_entities AS (
           SELECT DISTINCT ies.entity_id
@@ -590,13 +629,12 @@ export class BigQueryAdapter extends FileAdapter {
   }
 
   override async getSignalCaptureRates(hours_back: number, platform?: string): Promise<object[]> {
-    const bq = await this.client();
     const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
     const pFilter = platform ? "AND platform = @platform" : "";
     const params: Record<string, unknown> = { hours_back: Math.trunc(hours_back) };
     if (platform) params.platform = platform;
     try {
-      const [rows] = await bq.query({
+      const rows = await this.runQuery({
         query: `
         SELECT
           namespace_id,
@@ -620,10 +658,9 @@ export class BigQueryAdapter extends FileAdapter {
   }
 
   override async getCrmNullFieldStats(since_hours: number) {
-    const bq = await this.client();
     const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
     try {
-      const [rows] = await bq.query({
+      const rows = await this.runQuery({
         query: `
         SELECT
           COUNTIF(gclid IS NULL AND fbclid IS NULL AND li_fat_id IS NULL
@@ -669,7 +706,6 @@ export class BigQueryAdapter extends FileAdapter {
     date_from?: string;
     date_to?: string;
   } = {}): Promise<object[]> {
-    const bq = await this.client();
     const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
     const conditions: string[] = [];
     const params: Record<string, unknown> = {};
@@ -679,7 +715,7 @@ export class BigQueryAdapter extends FileAdapter {
     if (filters.status)       { conditions.push("campaign_status = @status");      params.status = filters.status; }
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
     try {
-      const [rows] = await bq.query({
+      const rows = await this.runQuery({
         query: `
         SELECT *
         FROM ${ds}.v_campaign_performance
@@ -703,7 +739,6 @@ export class BigQueryAdapter extends FileAdapter {
     pacing_status?: "overpacing" | "underpacing" | "on_pace" | "no_budget_data";
     funnel_stage?: string;
   } = {}): Promise<object[]> {
-    const bq = await this.client();
     const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
     const conditions: string[] = [];
     const params: Record<string, unknown> = {};
@@ -713,7 +748,7 @@ export class BigQueryAdapter extends FileAdapter {
     if (filters.funnel_stage)  { conditions.push("funnel_stage = @funnel_stage");     params.funnel_stage = filters.funnel_stage; }
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
     try {
-      const [rows] = await bq.query({
+      const rows = await this.runQuery({
         query: `
         SELECT *
         FROM ${ds}.v_pacing_status
@@ -743,7 +778,6 @@ export class BigQueryAdapter extends FileAdapter {
     channel?: string;
     conversion_type?: string;
   } = {}): Promise<object[]> {
-    const bq = await this.client();
     const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
     const conditions: string[] = [];
     const params: Record<string, unknown> = {};
@@ -752,7 +786,7 @@ export class BigQueryAdapter extends FileAdapter {
     if (filters.conversion_type) { conditions.push("conversion_type = @conversion_type");   params.conversion_type = filters.conversion_type; }
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
     try {
-      const [rows] = await bq.query({
+      const rows = await this.runQuery({
         query: `
         SELECT *
         FROM ${ds}.v_roas_comparison
@@ -770,14 +804,13 @@ export class BigQueryAdapter extends FileAdapter {
    * spend vs pipeline gap per channel. Queries v_channel_efficiency.
    */
   async getChannelEfficiency(): Promise<object[]> {
-    const bq = await this.client();
     const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
     try {
-      const [rows] = await bq.query(`
+      const rows = await this.runQuery({ query: `
         SELECT *
         FROM ${ds}.v_channel_efficiency
         ORDER BY pipeline_share_pct DESC
-      `);
+      ` });
       return rows as object[];
     } catch { return []; }
   }
@@ -792,7 +825,6 @@ export class BigQueryAdapter extends FileAdapter {
     creative_format?: string;
     min_spend?: number;
   } = {}): Promise<object[]> {
-    const bq = await this.client();
     const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
     const conditions: string[] = [];
     const params: Record<string, unknown> = {};
@@ -802,7 +834,7 @@ export class BigQueryAdapter extends FileAdapter {
     if (filters.min_spend != null) { conditions.push("total_spend >= @min_spend");          params.min_spend = filters.min_spend; }
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
     try {
-      const [rows] = await bq.query({
+      const rows = await this.runQuery({
         query: `
         SELECT *
         FROM ${ds}.v_ad_performance
@@ -827,7 +859,6 @@ export class BigQueryAdapter extends FileAdapter {
     low_quality_score?: boolean;
     lost_is_budget?: boolean;
   } = {}): Promise<object[]> {
-    const bq = await this.client();
     const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
     const conditions: string[] = [];
     const params: Record<string, unknown> = {};
@@ -838,7 +869,7 @@ export class BigQueryAdapter extends FileAdapter {
     if (filters.lost_is_budget)    conditions.push("avg_is_lost_budget > 0.1");
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
     try {
-      const [rows] = await bq.query({
+      const rows = await this.runQuery({
         query: `
         SELECT *
         FROM ${ds}.v_keyword_performance
@@ -866,7 +897,6 @@ export class BigQueryAdapter extends FileAdapter {
   } = {}): Promise<object[]> {
     // Queries platform_daily_spend directly (deployed, always available).
     // Falls back gracefully without the v_daily_performance view dependency.
-    const bq = await this.client();
     const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
 
     const conditions: string[] = [];
@@ -891,7 +921,7 @@ export class BigQueryAdapter extends FileAdapter {
     // This keeps the SELECT consistent (all metrics use SUM) and avoids BigQuery
     // "neither grouped nor aggregated" errors.
     try {
-      const [rows] = await bq.query({
+      const rows = await this.runQuery({
         query: `
         SELECT
           ${periodExpr}                          AS period,
@@ -935,10 +965,9 @@ export class BigQueryAdapter extends FileAdapter {
    * Queries company_profiles table.
    */
   async getCompanyProfile(company_domain: string): Promise<object | null> {
-    const bq = await this.client();
     const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
     try {
-      const [rows] = await bq.query({
+      const rows = await this.runQuery({
         query: `
         SELECT *
         FROM ${ds}.company_profiles
@@ -965,7 +994,6 @@ export class BigQueryAdapter extends FileAdapter {
     min_sessions_30d?: number;
     limit?: number;
   } = {}): Promise<object[]> {
-    const bq = await this.client();
     const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
     const conditions: string[] = [];
     const params: Record<string, unknown> = { limit: Math.trunc(filters.limit ?? 100) };
@@ -976,7 +1004,7 @@ export class BigQueryAdapter extends FileAdapter {
     if (filters.min_sessions_30d != null)   { conditions.push("sessions_30d >= @min_sessions_30d");        params.min_sessions_30d = Math.trunc(filters.min_sessions_30d); }
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
     try {
-      const [rows] = await bq.query({
+      const rows = await this.runQuery({
         query: `
         SELECT *
         FROM ${ds}.v_target_account_funnel
@@ -995,10 +1023,9 @@ export class BigQueryAdapter extends FileAdapter {
    * Queries company_sessions table.
    */
   async getCompanySessions(company_domain: string, lookback_days = 30): Promise<object[]> {
-    const bq = await this.client();
     const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
     try {
-      const [rows] = await bq.query({
+      const rows = await this.runQuery({
         query: `
         SELECT
           session_id, session_date, session_start_at, session_duration_seconds,
@@ -1023,10 +1050,9 @@ export class BigQueryAdapter extends FileAdapter {
    * Queries company_engagement table.
    */
   async getCompanyEngagement(company_domain: string, period_type = "rolling_30d"): Promise<object | null> {
-    const bq = await this.client();
     const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
     try {
-      const [rows] = await bq.query({
+      const rows = await this.runQuery({
         query: `
         SELECT *
         FROM ${ds}.company_engagement
@@ -1050,7 +1076,6 @@ export class BigQueryAdapter extends FileAdapter {
     web_presence_status?: "dark" | "lapsed" | "visible";
     crm_pipeline_stage?: string;
   } = {}): Promise<object[]> {
-    const bq = await this.client();
     const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
     const conditions: string[] = [];
     const params: Record<string, unknown> = {};
@@ -1059,7 +1084,7 @@ export class BigQueryAdapter extends FileAdapter {
     if (filters.crm_pipeline_stage)  { conditions.push("crm_pipeline_stage = @crm_pipeline_stage");   params.crm_pipeline_stage = filters.crm_pipeline_stage; }
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
     try {
-      const [rows] = await bq.query({
+      const rows = await this.runQuery({
         query: `
         SELECT *
         FROM ${ds}.v_dark_funnel_coverage
@@ -1078,10 +1103,9 @@ export class BigQueryAdapter extends FileAdapter {
    * Queries target_account_activity table.
    */
   async getTargetAccountActivity(company_domain: string, lookback_days = 30): Promise<object[]> {
-    const bq = await this.client();
     const ds = `\`${this.config.projectId}.${this.config.dataset}\``;
     try {
-      const [rows] = await bq.query({
+      const rows = await this.runQuery({
         query: `
         SELECT *
         FROM ${ds}.target_account_activity
